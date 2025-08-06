@@ -1,0 +1,123 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Mermaid diagram styles */
+.mermaid {
+  background-color: white;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  overflow-x: auto;
+}
+
+.mermaid svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Table styles */
+.table-container {
+  overflow-x: auto;
+  margin-bottom: 1rem;
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th,
+.table td {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.table th {
+  background-color: #f9fafb;
+  font-weight: 600;
+  color: #374151;
+}
+
+.table tr:hover {
+  background-color: #f9fafb;
+}
+
+/* Toggle Switch Styles */
+.toggle-checkbox {
+  right: 0;
+  z-index: 5;
+  opacity: 0;
+  transition: all 0.3s ease;
+}
+
+.toggle-checkbox:checked {
+  right: 0;
+  border-color: #3b82f6;
+}
+
+.toggle-checkbox:checked + .toggle-label {
+  background-color: #3b82f6;
+}
+
+.toggle-label {
+  transition: background-color 0.2s ease;
+}
+
+@layer components {
+  /* Form and Input Styles */
+  .input {
+    @apply w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white;
+  }
+
+  .select {
+    @apply w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white appearance-none;
+  }
+
+  .btn {
+    @apply px-6 py-3 rounded-lg font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2;
+  }
+
+  .btn-primary {
+    @apply bg-[#0052cc] text-white hover:bg-[#0047B3] focus:ring-blue-500;
+  }
+
+  /* Table Styles */
+  .table {
+    @apply min-w-full divide-y divide-gray-200;
+  }
+  
+  .table thead {
+    @apply bg-gray-50;
+  }
+  
+  .table th {
+    @apply px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider;
+  }
+  
+  .table td {
+    @apply px-6 py-4 whitespace-normal text-sm text-gray-900 align-top;
+  }
+  
+  .table tbody {
+    @apply bg-white divide-y divide-gray-200;
+  }
+  
+  .table tr {
+    @apply hover:bg-gray-50;
+  }
+
+  .table-container {
+    @apply overflow-x-auto rounded-lg border border-gray-200;
+  }
+
+  .card {
+    @apply p-4 rounded-lg;
+  }
+
+  .prose pre.mermaid {
+    @apply bg-white p-4 rounded-lg shadow-sm border border-gray-200 overflow-x-auto;
+  }
+}

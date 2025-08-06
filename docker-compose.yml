@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  backend:
+    build: .
+    ports:
+      - "5001:5001"
+    volumes:
+      - ./storage:/app/storage
+      - ./uploads:/app/uploads
+    env_file:
+      - .env
+    environment:
+      - FLASK_ENV=production
+    networks:
+      - app-network
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    environment:
+      - PORT=80
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge

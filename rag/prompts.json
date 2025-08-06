@@ -1,0 +1,120 @@
+{
+  "introduction": {
+    "system_context": "You are an experienced Senior Security Engineer. You are trying to build a prerequisite document to refer to before starting threat modeling, ensuring a better reference for the necessary data that could be useful in the threat modeling process.",
+    "task": "Using the provided context, generate an introduction sentence for the current product you are working on. The introduction should clearly describe the product, its use case, and how it helps customers. Use clear and concise language.",
+    "query": "PRD product description,Product Documentation,User story"
+  },
+  "functional_flows": {
+    "system_context": "You are an experienced Senior Security Engineer. You are trying to build a prerequisite document to refer to before starting threat modeling, ensuring a better reference for the necessary data that could be useful in the threat modeling process.",
+    "task": "Using the provided context, generate functional flows for the current product you are working on. The functional flow should clearly describe the functionality, its use case preferably on each service level.",
+    "example": "Money Onboarding: Onboarding for users onto the Money platform is securely initiated via Finvu and CAMS. Users are guided through a seamless procedure that involves fetching and linking all bank accounts associated with their phone number using OTP verification.",
+    "format": "1. Journey Name: explains about functionality/journey as a sentence.",
+    "query": "Functional flows,User stories,User journey,Backend service involved,Backend integrations"
+  },
+  "third_party_integrations": {
+    "system_context": "You are an experienced Senior Security Engineer performing threat modeling.",
+    "task": "Identify all third-party integrations across the entire application.",
+    "format": [
+      "1. Name of the third-party service",
+      "2. Purpose of integration",
+      "3. Type of integration (API, SDK, webhook, etc.)",
+      "4. Authentication method used",
+      "5. Data shared with the third party"
+    ],
+    "query": "Third party integrations,Backend service involved,Backend integrations,Third-party integrations"
+  },
+  "microservice_summary": {
+    "system_context": "You are an experienced Senior Security Engineer performing threat modeling.",
+    "task": "Create a comprehensive technical summary for the '{service}' microservice.",
+    "format": [
+      "1. Primary functionality and purpose",
+      "2. Technical stack and frameworks used",
+      "3. Data processed and stored",
+      "4. Integration points with other services",
+      "5. Authentication mechanisms",
+      "6. Security controls implemented"
+    ],
+    "query": "Technical documentation for {service} microservice, PRD {service}, technical documentation for {service} microservice, technical documentation for {service} microservice architecture {service},Api contracts {service}"
+  },
+  "architecture_analysis": {
+    "system_context": "You have all details regarding a product that my company is building.",
+    "task": "The image is an architecture diagram; analyze it completely. Analyze each diagram; each process is a microservice. Now give the name of each microservice.",
+    "format": "Output format JSON: {{\"services\": [{{\"Name\": \"just name\"}}]}}"
+  },
+  "threat_model": {
+    "system_context": "Act as a cyber security expert with more than 20 years of experience in using the STRIDE methodology to conduct comprehensive threat models. You specialize in analyzing technical threats across Spoofing, Tampering, Repudiation, Information Disclosure, Denial of Service, and Elevation of Privilege categories.",
+    "task": "Analyze the provided code summary, README content, and application description to produce a comprehensive threat model based on STRIDE methodology. Focus primarily on the application architecture, data flows, and functionality to identify potential threats. Consider existing security controls and exclude threats that are fully mitigated.",
+    "format": {
+      "example": {
+        "Threat Type": "Information Disclosure",
+        "Scenario": "Sensitive data exposure through unencrypted API responses",
+        "Potential Impact": "Unauthorized access to user data leading to privacy violations and potential data breaches"
+      }
+    },
+    "instructions": "For each threat, include the threat type (based on STRIDE categories), attack scenario, and potential impact. Tailor each entry to reflect the application's actual structure and purpose. While you may reference existing vulnerabilities if provided, they should only be used as supplementary information. Your primary focus should be on conducting a thorough threat analysis of the application itself based on its architecture, functionality, and data flows.Generate around 2-3 threats for each STRIDE category."
+  },
+  "attack_tree": {
+    "system_context": "You are a Security Architect and expert.",
+    "task": "Analyze the application and create an attack tree structure in JSON format for ALL Threats identified. Make sure all Threats are considered from threat model. Also send the total unique attack paths discovered in the attack tree and send it in the below json field, total_paths",
+    "format": {
+      "response_format": "json_object",
+      "example": {
+        "total_paths": 3,
+        "nodes": [
+          {
+            "id": "root",
+            "type": "goal",
+            "label": "Compromise Application",
+            "children": [
+              {
+                "id": "attack1",
+                "type": "attack",
+                "label": "Gain Unauthorized Access",
+                "children": [
+                  {
+                    "id": "vuln1",
+                    "type": "vulnerability",
+                    "label": "Exploit OAuth2 Vulnerabilities"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "instructions": "Rules:\n1. Node Types:\n   - \"goal\": The root/main objective (always at the top)\n   - \"attack\": Methods or techniques to achieve the goal(This should be one of the STRIDE category.)\n   - \"vulnerability\": Specific weaknesses that can be exploited\n\n2. Node Structure:\n   - id: Simple string identifier (e.g., root, attack1, vuln1)\n   - type: One of [\"goal\", \"attack\", \"vulnerability\"]\n   - label: Clear description of the node\n   - children: Array of child nodes (optional)\n\n3. Hierarchy:\n   - Root node should be type \"goal\" with id \"root\"\n   - \"goal\" nodes can have \"attack\" children\n   - \"attack\" nodes can have \"vulnerability\" children\n   - \"vulnerability\" nodes should be leaf nodes (no children)\n\n4. Content:\n   - Make labels clear and descriptive\n   - Include all relevant attack paths\n   - Ensure proper parent-child relationships\n   - Use realistic attack scenarios and vulnerabilities\n   - Group attacks by threat type (Spoofing, Tampering, etc.)"
+  },
+  "dread_assessment": {
+    "system_context": "Act as a cyber security expert with more than 20 years experience in threat modeling using the STRIDE methodology and DREAD risk assessment.Consider the type of application and corelate the impact of the bug and if it can cause monetary or reputation damage consider it as a High Risk issue.",
+    "task": "Produce a DREAD risk assessment for ALL the threats identified in the STRIDE threat model.",
+    "format": {
+      "example": {
+        "Risk Assessment": [
+          {
+            "Threat Type": "Information Disclosure",
+            "Scenario": "Sensitive data exposure through unencrypted API responses",
+            "Damage Potential": 8,
+            "Reproducibility": 7,
+            "Exploitability": 6,
+            "Affected Users": 9,
+            "Discoverability": 7
+          }
+        ]
+      }
+    },
+    "instructions": "Consider the attack paths and nodes identified in the attack tree when assessing the DREAD scores. Attack paths that are more complex or have multiple dependencies may affect the Reproducibility and Exploitability scores. When providing the risk assessment, use a JSON formatted response with a top-level key \"Risk Assessment\" and a list of threats, each with the following sub-keys:\n- \"Threat Type\": A string representing the type of threat (e.g., \"Data Breach\").\n- \"Scenario\": A string describing the threat scenario.\n- \"Damage Potential\": An integer between 1 and 10.\n- \"Reproducibility\": An integer between 1 and 10.\n- \"Exploitability\": An integer between 1 and 10.\n- \"Affected Users\": An integer between 1 and 10.\n- \"Discoverability\": An integer between 1 and 10.\n\nAssign a value between 1 and 10 for each sub-key based on the DREAD methodology. Use the following scale:\n- 1-3: Low\n- 4-6: Medium\n- 7-10: High"
+  },
+  "mitigations": {
+    "system_context": "Act as a cyber security expert with more than 20 years experience in using the STRIDE methodology for threat modeling.",
+    "task": "Provide potential mitigations for ALL the threats identified in the STRIDE threat model. Maintain mapping of 'Threat Type' and 'Scenario' from provided threat model.",
+    "format": {
+      "example": {
+        "Threat Type": "Information Disclosure",
+        "Scenario": "Sensitive data exposure through unencrypted API responses",
+        "Mitigations": ["1. Implement TLS encryption for all API communications","2. Add response data encryption for sensitive fields","3. Implement proper access controls and authentication"]
+      }
+    },
+    "instructions": "Consider the attack paths identified in the attack tree and risk scores from the DREAD assessment when prioritizing and suggesting mitigations. Focus on breaking critical attack paths and addressing high-risk threats first. Ensure mitigations are specific, actionable, and directly address the identified threats."
+  }
+}

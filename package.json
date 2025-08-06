@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "@types/axios": "^0.9.36",
+    "@types/react": "^19.0.12",
+    "@types/react-dom": "^19.0.4",
+    "axios": "^1.8.4"
+  }
+}

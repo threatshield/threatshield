@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ThreatShield - The Intelligent way of Threat Modelling</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        h1, h2 {
+            color: #2c3e50;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+        }
+        tr:hover {
+            background-color: #f5f5f5;
+        }
+        .threat-spoofing { background-color: #ffecb3; }
+        .threat-tampering { background-color: #ffccbc; }
+        .threat-repudiation { background-color: #c8e6c9; }
+        .threat-information-disclosure { background-color: #bbdefb; }
+        .threat-denial-of-service { background-color: #d1c4e9; }
+        .threat-elevation-of-privilege { background-color: #f8bbd0; }
+        
+        .suggestions {
+            background-color: #f9f9f9;
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 4px solid #2196F3;
+        }
+        .suggestions li {
+            margin-bottom: 10px;
+        }
+        .back-link {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 10px 15px;
+            background-color: #2196F3;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+        }
+        .back-link:hover {
+            background-color: #0b7dda;
+        }
+    </style>
+</head>
+<body>
+    <h1>Threat Model Results</h1>
+    
+    <h2>Application Details</h2>
+    <table>
+        <tr>
+            <th>Property</th>
+            <th>Value</th>
+        </tr>
+        <tr>
+            <td>Application Type</td>
+            <td>{{ app_type }}</td>
+        </tr>
+        <tr>
+            <td>Authentication Methods</td>
+            <td>{{ authentication }}</td>
+        </tr>
+        <tr>
+            <td>Internet Facing</td>
+            <td>{{ internet_facing }}</td>
+        </tr>
+        <tr>
+            <td>Sensitive Data</td>
+            <td>{{ sensitive_data }}</td>
+        </tr>
+    </table>
+    
+    <h2>Identified Threats</h2>
+    <table>
+        <tr>
+            <th>Threat Type</th>
+            <th>Scenario</th>
+            <th>Potential Impact</th>
+        </tr>
+        {% for threat in threat_model %}
+        <tr class="threat-{{ threat['Threat Type']|lower|replace(' ', '-') }}">
+            <td>{{ threat['Threat Type'] }}</td>
+            <td>{{ threat['Scenario'] }}</td>
+            <td>{{ threat['Potential Impact'] }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+    
+    <h2>Improvement Suggestions</h2>
+    <div class="suggestions">
+        <ul>
+            {% for suggestion in improvement_suggestions %}
+            <li>{{ suggestion }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    
+    <a href="/" class="back-link">Back to Upload</a>
+</body>
+</html>

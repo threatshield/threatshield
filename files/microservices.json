@@ -1,0 +1,13 @@
+{
+    "services": [
+        {
+            "Name": "Frontend"
+        },
+        {
+            "Name": "Server"
+        },
+        {
+            "Name": "File System"
+        }
+    ]
+}

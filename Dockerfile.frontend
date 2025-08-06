@@ -1,0 +1,9 @@
+FROM node:18-alpine
+WORKDIR /app
+COPY threat-shield/package*.json ./
+RUN npm install
+COPY threat-shield/ .
+ENV PORT=80
+ENV WDS_SOCKET_HOST=0.0.0.0
+ENV DANGEROUSLY_DISABLE_HOST_CHECK=true
+CMD ["npm", "run", "dev"]

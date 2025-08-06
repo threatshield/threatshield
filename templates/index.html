@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ThreatShield - The Intelligent way of Threat Modelling</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        h1, h2, h3 {
+            color: #2c3e50;
+        }
+        .form-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background-color: #f9f9f9;
+            border-radius: 5px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="text"], 
+        input[type="file"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        textarea {
+            height: 100px;
+            resize: vertical;
+        }
+        .checkbox-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+        }
+        .checkbox-item input {
+            margin-right: 5px;
+        }
+        .radio-group {
+            display: flex;
+            gap: 20px;
+        }
+        button {
+            background-color: #2196F3;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #0b7dda;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        #results {
+            margin-top: 20px;
+        }
+        .result-section {
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .loading {
+            display: none;
+            margin: 20px 0;
+            text-align: center;
+            color: #666;
+        }
+        #threatModelBtn {
+            display: none;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Document Upload & Threat Modeling</h1>
+    
+    <form id="uploadForm">
+        <div class="form-section">
+            <h2>Document Source</h2>
+            <div class="form-group">
+                <label for="pdf_file">Upload PDF File:</label>
+                <input type="file" id="pdf_file" name="pdf_file">
+            </div>
+            <div class="form-group">
+                <label for="image_files">Upload Architecture Diagram Images:</label>
+                <input type="file" id="image_files" name="image_files" accept="image/*" multiple>
+            </div>
+        </div>
+        
+        <div class="form-section">
+            <h2>Threat Modeling Information</h2>
+            <p>Please provide the following information to generate a comprehensive threat model.</p>
+            
+            <div class="form-group">
+                <label for="app_type">Application Type:</label>
+                <select id="app_type" name="app_type">
+                    <option value="Web Application">Web Application</option>
+                    <option value="Mobile Application">Mobile Application</option>
+                    <option value="Desktop Application">Desktop Application</option>
+                    <option value="API/Microservice">API/Microservice</option>
+                    <option value="IoT Device">IoT Device</option>
+                    <option value="Cloud Service">Cloud Service</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label>Authentication Methods:</label>
+                <div class="checkbox-group">
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="auth_password" name="authentication[]" value="Password">
+                        <label for="auth_password">Password</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="auth_oauth" name="authentication[]" value="OAuth">
+                        <label for="auth_oauth">OAuth</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="auth_jwt" name="authentication[]" value="JWT">
+                        <label for="auth_jwt">JWT</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="auth_saml" name="authentication[]" value="SAML">
+                        <label for="auth_saml">SAML</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="auth_mfa" name="authentication[]" value="MFA">
+                        <label for="auth_mfa">Multi-Factor Authentication</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="auth_sso" name="authentication[]" value="SSO">
+                        <label for="auth_sso">Single Sign-On</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="auth_none" name="authentication[]" value="None">
+                        <label for="auth_none">None</label>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label>Internet Facing:</label>
+                <div class="radio-group">
+                    <div class="checkbox-item">
+                        <input type="radio" id="internet_yes" name="internet_facing" value="Yes" checked>
+                        <label for="internet_yes">Yes</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="radio" id="internet_no" name="internet_facing" value="No">
+                        <label for="internet_no">No</label>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="sensitive_data">Sensitive Data Handled:</label>
+                <textarea id="sensitive_data" name="sensitive_data" placeholder="Describe the types of sensitive data handled by the application (e.g., PII, financial data, health records, etc.)"></textarea>
+            </div>
+            
+
+            <div class="form-group">
+                <label for="custom_prompt">Additional Context (Optional):</label>
+                <textarea id="custom_prompt" name="custom_prompt" placeholder="Provide any additional context that might be helpful for threat modeling (e.g., specific security concerns, compliance requirements, etc.)"></textarea>
+            </div>
+        </div>
+        
+        <button type="submit" id="uploadBtn">Process Documents</button>
+        <button type="button" id="threatModelBtn" disabled>Generate Threat Model</button>
+    </form>
+
+    <div id="uploadLoading" class="loading">Processing documents...</div>
+    <div id="threatModelLoading" class="loading">Generating threat model...</div>
+
+    <div id="results">
+        <div id="ragResults" class="result-section" style="display: none;">
+            <h3>Document Processing Results</h3>
+            <pre></pre>
+        </div>
+        <div id="threatModelResults" class="result-section" style="display: none;">
+            <h3>Threat Model Results</h3>
+            <div></div>
+        </div>
+    </div>
+
+    <button type="button" id="dreadBtn" style="display: none;">Generate DREAD Assessment</button>
+    <button type="button" id="mitigationBtn" style="display: none;">Generate Mitigations</button>
+    <button type="button" id="attackTreeBtn" style="display: none;">Generate Attack Tree</button>
+
+    <div id="dreadLoading" class="loading">Generating DREAD assessment...</div>
+    <div id="dreadResults" class="result-section" style="display: none;">
+        <h3>DREAD Assessment Results</h3>
+        <div></div>
+    </div>
+
+    <div id="mitigationLoading" class="loading">Generating mitigations...</div>
+    <div id="mitigationResults" class="result-section" style="display: none;">
+        <h3>Mitigation Strategies</h3>
+        <div></div>
+    </div>
+
+    <div id="attackTreeLoading" class="loading">Generating attack tree...</div>
+    <div id="attackTreeResults" class="result-section" style="display: none;">
+        <h3>Attack Tree</h3>
+        <div></div>
+    </div>
+
+    <script>
+        let currentAssessmentId = null;
+        
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const uploadBtn = document.getElementById('uploadBtn');
+            const uploadLoading = document.getElementById('uploadLoading');
+            const ragResults = document.getElementById('ragResults');
+            const threatModelBtn = document.getElementById('threatModelBtn');
+            
+            uploadBtn.disabled = true;
+            uploadLoading.style.display = 'block';
+            ragResults.style.display = 'none';
+            
+            try {
+                const response = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                // Store assessment ID
+                currentAssessmentId = data.assessment_id;
+                
+                // Display RAG results
+                ragResults.querySelector('pre').textContent = JSON.stringify(data, null, 2);
+                ragResults.style.display = 'block';
+                
+                // Enable threat model button
+                threatModelBtn.disabled = false;
+                threatModelBtn.style.display = 'block';
+                
+            } catch (error) {
+                alert('Error processing documents: ' + error.message);
+            } finally {
+                uploadBtn.disabled = false;
+                uploadLoading.style.display = 'none';
+            }
+        });
+        
+        document.getElementById('threatModelBtn').addEventListener('click', async () => {
+            if (!currentAssessmentId) {
+                alert('Please process documents first');
+                return;
+            }
+            
+            const threatModelBtn = document.getElementById('threatModelBtn');
+            const threatModelLoading = document.getElementById('threatModelLoading');
+            const threatModelResults = document.getElementById('threatModelResults');
+            const dreadBtn = document.getElementById('dreadBtn');
+            
+            threatModelBtn.disabled = true;
+            threatModelLoading.style.display = 'block';
+            threatModelResults.style.display = 'none';
+            dreadBtn.style.display = 'none';
+            
+            try {
+                const formData = new FormData(document.getElementById('uploadForm'));
+                const params = {
+                    assessment_id: currentAssessmentId,
+                    app_type: formData.get('app_type'),
+                    authentication: Array.from(formData.getAll('authentication[]')),
+                    internet_facing: formData.get('internet_facing'),
+                    sensitive_data: formData.get('sensitive_data'),
+                    custom_prompt: formData.get('custom_prompt')
+                };
+                
+                const response = await fetch('/api/threat-model', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(params)
+                });
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                // Display threat model results
+                threatModelResults.querySelector('div').innerHTML = data.markdown;
+                threatModelResults.style.display = 'block';
+                
+                // Enable DREAD, mitigation, and attack tree buttons
+                dreadBtn.style.display = 'block';
+                dreadBtn.disabled = false;
+                document.getElementById('mitigationBtn').style.display = 'block';
+                document.getElementById('mitigationBtn').disabled = false;
+                document.getElementById('attackTreeBtn').style.display = 'block';
+                document.getElementById('attackTreeBtn').disabled = false;
+                
+            } catch (error) {
+                alert('Error generating threat model: ' + error.message);
+            } finally {
+                threatModelBtn.disabled = false;
+                threatModelLoading.style.display = 'none';
+            }
+        });
+
+        document.getElementById('dreadBtn').addEventListener('click', async () => {
+            if (!currentAssessmentId) {
+                alert('Please generate threat model first');
+                return;
+            }
+            
+            const dreadBtn = document.getElementById('dreadBtn');
+            const dreadLoading = document.getElementById('dreadLoading');
+            const dreadResults = document.getElementById('dreadResults');
+            
+            dreadBtn.disabled = true;
+            dreadLoading.style.display = 'block';
+            dreadResults.style.display = 'none';
+            
+            try {
+                const response = await fetch('/api/dread-assessment', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        assessment_id: currentAssessmentId
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                // Display DREAD results
+                dreadResults.querySelector('div').innerHTML = data.markdown;
+                dreadResults.style.display = 'block';
+                
+            } catch (error) {
+                alert('Error generating DREAD assessment: ' + error.message);
+            } finally {
+                dreadBtn.disabled = false;
+                dreadLoading.style.display = 'none';
+            }
+        });
+        document.getElementById('mitigationBtn').addEventListener('click', async () => {
+            if (!currentAssessmentId) {
+                alert('Please generate threat model first');
+                return;
+            }
+            
+            const mitigationBtn = document.getElementById('mitigationBtn');
+            const mitigationLoading = document.getElementById('mitigationLoading');
+            const mitigationResults = document.getElementById('mitigationResults');
+            
+            mitigationBtn.disabled = true;
+            mitigationLoading.style.display = 'block';
+            mitigationResults.style.display = 'none';
+            
+            try {
+                const response = await fetch('/api/mitigations', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        assessment_id: currentAssessmentId
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                // Display mitigation results
+                mitigationResults.querySelector('div').innerHTML = data.markdown;
+                mitigationResults.style.display = 'block';
+                
+            } catch (error) {
+                alert('Error generating mitigations: ' + error.message);
+            } finally {
+                mitigationBtn.disabled = false;
+                mitigationLoading.style.display = 'none';
+            }
+        });
+
+        document.getElementById('attackTreeBtn').addEventListener('click', async () => {
+            if (!currentAssessmentId) {
+                alert('Please generate threat model first');
+                return;
+            }
+            
+            const attackTreeBtn = document.getElementById('attackTreeBtn');
+            const attackTreeLoading = document.getElementById('attackTreeLoading');
+            const attackTreeResults = document.getElementById('attackTreeResults');
+            
+            attackTreeBtn.disabled = true;
+            attackTreeLoading.style.display = 'block';
+            attackTreeResults.style.display = 'none';
+            
+            try {
+                const response = await fetch('/api/attack-tree', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        assessment_id: currentAssessmentId
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                // Display attack tree results
+                attackTreeResults.querySelector('div').innerHTML = data.markdown;
+                attackTreeResults.style.display = 'block';
+                
+            } catch (error) {
+                alert('Error generating attack tree: ' + error.message);
+            } finally {
+                attackTreeBtn.disabled = false;
+                attackTreeLoading.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>
