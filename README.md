@@ -41,6 +41,8 @@ If you find ThreatShield useful, please consider starring the repository on GitH
 
 ### Setup Instructions
 
+#### Option 1: Local Setup (Development)
+
 1. **Clone the Repository**: 
    ```bash
    git clone https://github.com/threatshield/threatshield.git
@@ -86,6 +88,64 @@ If you find ThreatShield useful, please consider starring the repository on GitH
    npm install
    npm start
    ```
+
+#### Option 2: Docker Setup (Recommended for Production)
+
+1. **Clone the Repository**: 
+   ```bash
+   git clone https://github.com/threatshield/threatshield.git
+   cd ThreatShield
+   ```
+
+2. **Configure Environment Variables**:
+   Create a `.env` file in the root directory with the following variables:
+
+   **API Keys and Authentication**
+   ```
+   OPENAI_API_KEY=your_openai_api_key
+   CONFLUENCE_API_KEY=your_confluence_api_key
+   CONFLUENCE_USERNAME=your_confluence_username
+   SLACK_API_TOKEN=your_slack_bot_token
+   ```
+
+   **LLM Provider Configuration**
+   ```
+   LLM_METHOD=OPENAI  # Change to BEDROCK when using Bedrock
+   ```
+
+   **Bedrock Configuration (required when LLM_METHOD=BEDROCK)**
+   ```
+   BEDROCK_BASE_URL=your_bedrock_api_url
+   BEDROCK_API_KEY=your_bedrock_api_key
+   BEDROCK_MODEL=your_bedrock_model_name
+   ```
+
+3. **Build and Run with Docker Compose**:
+   ```bash
+   docker-compose up --build
+   ```
+
+   This will:
+   - Build the backend Docker image (Python Flask on port 5001)
+   - Build the frontend Docker image (React on port 3000)
+   - Start both services in a shared network
+   - Create volumes for storage and uploads
+
+4. **Access the Application**:
+   - Frontend: http://localhost:3000
+   - Backend API: http://localhost:5001
+
+5. **Stop the Services**:
+   ```bash
+   docker-compose down
+   ```
+
+**Docker Compose Configuration Details**:
+- **Backend Service**: Runs on port 5001, mounts `./storage` and `./uploads` directories
+- **Frontend Service**: Runs on port 3000, depends on backend service
+- **Network**: Both services communicate via `app-network` bridge network
+- **Environment**: Loads variables from `.env` file for backend, sets PORT=3000 for frontend
+
  **Note**: ThreatShield requires the following OpenAI models to be enabled:
    - **gpt-4o**: for threat modeling and analysis (any other reasoning model can also be used)
    - **text-embedding-3-large**: for vector database creation
@@ -140,4 +200,4 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the LICENSE file for details. 
+This project is licensed under the MIT License - see the LICENSE file for details.
