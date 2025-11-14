@@ -8,4 +8,5 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 COPY . .
+EXPOSE 5001
 CMD ["python3", "app.py"]
