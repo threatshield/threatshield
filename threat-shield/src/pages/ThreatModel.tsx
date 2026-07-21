@@ -3,7 +3,13 @@ import { useParams, useNavigate } from 'react-router-dom';
 import NavigationButtons from '../components/common/NavigationButtons';
 import { useAssessment } from '../context/AssessmentContext';
 import { apiService, API_BASE_URL } from '../services/api';
-import { DreadAssessmentItem, ThreatModelResponse, Threat } from '../types/reportTypes';
+import { DreadAssessmentItem, ThreatModelResponse, Threat, PastaThreat } from '../types/reportTypes';
+
+const confidenceBadge = (level: string) => {
+  const c = (level || 'Medium').trim();
+  const cls = c === 'High' ? 'bg-red-100 text-red-700' : c === 'Low' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700';
+  return <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${cls}`}>{c}</span>;
+};
 
 const ThreatModel: React.FC = () => {
   const navigate = useNavigate();
@@ -33,50 +39,17 @@ const ThreatModel: React.FC = () => {
       }
     };
 
-    const checkThreatModel = async () => {
-      try {
-        // First check if threat model already exists
-        const threatModelResponse = await fetch(`${API_BASE_URL}/storage?assessment_id=${assessment_id}&assessment_name=threat_model`);
-        if (threatModelResponse.ok) {
-          const threatModelData = await threatModelResponse.json();
-          if (threatModelData?.result) {
-            console.log('Using existing threat model:', threatModelData);
-            setThreatModelData(threatModelData);
-            setContextThreatModelData(threatModelData);
-            await fetchDreadData();
-            setLoading(false);
-            return true;
-          }
-        }
-        return false;
-      } catch (err) {
-        console.error('Error checking threat model:', err);
-        return false;
-      }
-    };
-
     const generateAssessments = async () => {
       try {
         setLoading(true);
         console.log('Generating assessments for ID:', assessment_id);
         
-        try {
-          // Generate threat model first
-          const threatModelData = await apiService.generateThreatModel(assessment_id!);
-          console.log('Generated threat model:', threatModelData);
-          setThreatModelData(threatModelData);
-          setContextThreatModelData(threatModelData);
-        } catch (err: any) {
-          // Check for specific error codes
-          if (err.code === 'SEQUENCE_VALIDATION_FAILED') {
-            setError(err.message);
-            console.error('Sequence validation failed:', err);
-            return;
-          }
-          throw err; // Re-throw other errors
-        }
+        // Generate all assessments
+        const threatModelData = await apiService.generateThreatModel(assessment_id!);
+        console.log('Generated threat model:', threatModelData);
+        setThreatModelData(threatModelData);
+        setContextThreatModelData(threatModelData);
         
-        // Only proceed with other assessments if threat model generation succeeds
         // Generate DREAD assessment
         console.log('Generating DREAD assessment...');
         await apiService.generateDreadAssessment(assessment_id!);
@@ -93,9 +66,8 @@ const ThreatModel: React.FC = () => {
         console.log('All assessments generated successfully');
         // Navigate to view-threat-model page after successful generation
         navigate(`/view-threat-model/${assessment_id}`);
-      } catch (err: any) {
-        const errorMessage = err.message || 'Failed to generate assessments. Please try again.';
-        setError(errorMessage);
+      } catch (err) {
+        setError('Failed to generate assessments. Please try again.');
         console.error('Error generating assessments:', err);
       } finally {
         setLoading(false);
@@ -112,12 +84,9 @@ const ThreatModel: React.FC = () => {
           await fetchDreadData(); // Always fetch DREAD data
           setLoading(false);
         } else {
-          // Check if threat model exists, if not generate all assessments
-          const threatModelExists = await checkThreatModel();
-          if (!threatModelExists) {
-            console.log('No threat model found, generating assessments');
-            await generateAssessments();
-          }
+          // Generate all assessments if not in context
+          console.log('No threat model data in context, generating assessments');
+          await generateAssessments();
         }
       } else {
         console.log('No assessment ID available');
@@ -127,32 +96,58 @@ const ThreatModel: React.FC = () => {
     init();
   }, [assessment_id, setContextThreatModelData, contextThreatModelData]);
 
+  // Determine if we're using PASTA methodology
+  const isPasta = useMemo(() => {
+    if (!threatModelData?.result?.raw_response?.threat_model?.length) return false;
+    const firstThreat = threatModelData.result.raw_response.threat_model[0];
+    return 'Business Risk Type' in firstThreat || 'PASTA Stage' in firstThreat;
+  }, [threatModelData]);
+
   // Get all threats
   const allThreats = useMemo(() => {
-    return threatModelData?.result?.result?.raw_response?.threat_model || [];
+    return threatModelData?.result?.raw_response?.threat_model || [];
   }, [threatModelData]);
 
   // Initialize threatsByType with proper null checks and memoization
   const threatsByType = useMemo(() => {
     try {
-      if (!threatModelData?.result?.result?.raw_response?.threat_model) {
+      if (!threatModelData?.result?.raw_response?.threat_model) {
         return {};
       }
 
-      return threatModelData.result.result.raw_response.threat_model.reduce((acc: Record<string, Threat[]>, threat: Threat) => {
-        if (!threat || !threat['Threat Type']) return acc;
-        const type = threat['Threat Type'];
-        if (!acc[type]) {
-          acc[type] = [];
+      return threatModelData.result.raw_response.threat_model.reduce((acc: Record<string, any[]>, threat: any) => {
+        if (isPasta) {
+          // For PASTA, group by Business Risk Type
+          if (!threat || !threat['Business Risk Type']) return acc;
+          
+          // Handle Business Risk Type which can be an array or string
+          const riskTypes = Array.isArray(threat['Business Risk Type']) 
+            ? threat['Business Risk Type'] 
+            : [threat['Business Risk Type']];
+          
+          // Add the threat to each of its risk types
+          riskTypes.forEach(riskType => {
+            if (!acc[riskType]) {
+              acc[riskType] = [];
+            }
+            acc[riskType].push(threat);
+          });
+        } else {
+          // For STRIDE, group by Threat Type
+          if (!threat || !threat['Threat Type']) return acc;
+          const type = threat['Threat Type'];
+          if (!acc[type]) {
+            acc[type] = [];
+          }
+          acc[type].push(threat);
         }
-        acc[type].push(threat);
         return acc;
       }, {});
     } catch (err) {
       console.error('Error processing threat model data:', err);
       return {};
     }
-  }, [threatModelData]);
+  }, [threatModelData, isPasta]);
 
   // Get threat types safely with memoization
   const threatTypes = useMemo(() => {
@@ -173,19 +168,6 @@ const ThreatModel: React.FC = () => {
         <div className="card p-8 text-center">
           <h2 className="text-xl font-semibold text-red-600 mb-4">Error Loading Threat Model</h2>
           <p className="mb-4">{error || 'Failed to load threat model data.'}</p>
-          {error && (
-            <div className="mt-4">
-              <p className="text-gray-600 mb-2">Please ensure that:</p>
-              <ul className="list-disc list-inside text-gray-600">
-                <li>All documents have been uploaded successfully</li>
-                <li>Document processing is complete</li>
-                <li>Project details are saved</li>
-                <li>Additional information is generated</li>
-                <li>RAG results are available</li>
-                <li>Try refreshing the page after a few moments</li>
-              </ul>
-            </div>
-          )}
         </div>
       </div>
     );
@@ -320,7 +302,7 @@ const ThreatModel: React.FC = () => {
                   : 'bg-white text-[#172b4d] border border-blue-100 hover:bg-blue-50'
               }`}
             >
-              Total ({threatModelData.result?.result?.raw_response?.threat_model?.length || 0})
+              Total ({threatModelData.result?.raw_response?.threat_model?.length || 0})
             </button>
           )}
         </div>
@@ -341,17 +323,49 @@ const ThreatModel: React.FC = () => {
             <table className="table">
             <thead>
               <tr>
-                <th>Threat Type</th>
-                <th>Scenario</th>
-                <th>Potential Impact</th>
+                {isPasta ? (
+                  <>
+                    <th>Business Risk Type</th>
+                    <th>Threat</th>
+                    <th>PASTA Stage</th>
+                    <th>Scenario</th>
+                    <th>Potential Impact</th>
+                    <th>Confidence</th>
+                  </>
+                ) : (
+                  <>
+                    <th>Threat Type</th>
+                    <th>Scenario</th>
+                    <th>Potential Impact</th>
+                    <th>Confidence</th>
+                  </>
+                )}
               </tr>
             </thead>
             <tbody>
-              {(activeTab ? threatsByType[activeTab] : allThreats).map((threat: Threat, index: number) => (
+              {(activeTab ? threatsByType[activeTab] : allThreats).map((threat: any, index: number) => (
                 <tr key={index}>
-                  <td className="font-medium">{threat['Threat Type']}</td>
-                  <td>{threat['Scenario']}</td>
-                  <td>{threat['Potential Impact']}</td>
+                  {isPasta ? (
+                    <>
+                      <td className="font-medium">
+                        {Array.isArray(threat['Business Risk Type'])
+                          ? threat['Business Risk Type'].join(', ')
+                          : threat['Business Risk Type']}
+                      </td>
+                      <td>{threat['Threat Type']}</td>
+                      <td>{threat['PASTA Stage']}</td>
+                      <td>{threat['Scenario']}</td>
+                      <td>{threat['Potential Impact']}</td>
+                      <td>{confidenceBadge(threat['Confidence'] || 'Medium')}</td>
+                    </>
+                  ) : (
+                    <>
+                      <td className="font-medium">{threat['Threat Type']}</td>
+                      <td>{threat['Scenario']}</td>
+                      <td>{threat['Potential Impact']}</td>
+                      <td>{confidenceBadge(threat['Confidence'] || 'Medium')}</td>
+                    </>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -375,9 +389,9 @@ const ThreatModel: React.FC = () => {
           <h2 className="text-2xl font-semibold text-[#172b4d]">Improvement Suggestions</h2>
         </div>
         <div className="card border border-blue-100 bg-white shadow-sm hover:shadow-md transition-shadow duration-200">
-          {threatModelData.result?.result?.raw_response?.improvement_suggestions?.length > 0 ? (
+          {threatModelData.result?.raw_response?.improvement_suggestions?.length > 0 ? (
             <ul className="list-disc pl-5 space-y-3 text-[#172b4d]">
-              {threatModelData.result.result.raw_response.improvement_suggestions.map((suggestion: string, index: number) => (
+              {threatModelData.result.raw_response.improvement_suggestions.map((suggestion, index) => (
                 <li key={index} className="pb-2 border-b border-blue-50 last:border-0 last:pb-0">{suggestion}</li>
               ))}
             </ul>

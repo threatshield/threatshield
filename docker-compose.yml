@@ -12,6 +12,27 @@ services:
       - .env
     environment:
       - FLASK_ENV=production
+      - STORAGE_PATH=/app/storage
+      - UPLOAD_PATH=/app/uploads
+    networks:
+      - app-network
+
+  mcp:
+    build: .
+    command: ["python3", "mcp_server.py"]
+    ports:
+      - "8765:8765"
+    volumes:
+      - ./storage:/app/storage
+    env_file:
+      - .env
+    environment:
+      - THREATSHIELD_BACKEND_URL=http://backend:5001
+      - MCP_HOST=0.0.0.0
+      - MCP_PORT=8765
+      - STORAGE_PATH=/app/storage
+    depends_on:
+      - backend
     networks:
       - app-network
 
@@ -19,12 +40,15 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.frontend
+      args:
+        - REACT_APP_DEPLOYMENT_TYPE=${REACT_APP_DEPLOYMENT_TYPE}
+        - REACT_APP_API_URL_DEV=${REACT_APP_API_URL_DEV}
+        - REACT_APP_API_URL_STAGE=${REACT_APP_API_URL_STAGE}
+        - REACT_APP_API_URL_PROD=${REACT_APP_API_URL_PROD}
     ports:
-      - "3000:3000"
+      - "80:80"
     depends_on:
       - backend
-    environment:
-      - PORT=3000
     networks:
       - app-network
 

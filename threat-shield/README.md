@@ -1,46 +1,72 @@
-# Getting Started with Create React App
+# ThreatShield — Frontend
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+React/TypeScript frontend for ThreatShield. Requires the Flask backend running on port 5001.
 
-## Available Scripts
+## Development
 
-In the project directory, you can run:
+```bash
+npm install
+npm start        # dev server on http://localhost:3000
+npm run build    # production build
+npm test         # run tests
+```
 
-### `npm start`
+API calls are proxied to `http://localhost:5001` in development (configured in `package.json` proxy field). In production, `REACT_APP_API_URL_PROD` controls the API base URL.
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+## Environment variables
 
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
+Copy `.env.example` to `.env` and set values:
 
-### `npm test`
+```env
+REACT_APP_DEPLOYMENT_TYPE=dev
+REACT_APP_API_URL_DEV=http://localhost:5001/api
+REACT_APP_API_URL_PROD=https://threatshield.example.com/api
+REACT_APP_GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
+```
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+## Pages
 
-### `npm run build`
+| Route | Component | Description |
+|-------|-----------|-------------|
+| `/` | `LandingPage` | Public landing page |
+| `/login` | `LoginPage` | Google OAuth sign-in |
+| `/home` | `Home` | Post-login dashboard |
+| `/queue` | `Queue` | Assessment queue management |
+| `/threat-model` | `ThreatModel` | STRIDE threat model view |
+| `/dread` | `Dread` | DREAD risk scoring |
+| `/mitigation` | `Mitigation` | Mitigation recommendations |
+| `/attack-tree` | `AttackTree` | Attack tree visualization |
+| `/test-cases` | `ViewSecurityTestCases` | ASVS security test cases |
+| `/chat` | `Chat` | Natural language Q&A over assessments |
+| `/report` | `Report` / `ReportList` | Report views |
+| `/analytics` | `Analytics` | Risk metrics dashboard |
+| `/admin` | `AdminDashboard` | LLM config, admin management, logs |
+| `/settings` | `Settings` | Pre-context and app settings |
+| `/integrations` | `Integrations` | MCP server management |
+| `/feedback` | `FeedbackPage` / `FeedbackList` | User feedback |
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+## Auth flow
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+1. User clicks "Sign in with Google" on `/login`
+2. Google returns an ID token
+3. Frontend POSTs it to `/api/auth/google`
+4. Backend returns a signed Bearer token (7-day TTL), stored as `ts_auth_token` in `localStorage`
+5. All subsequent API requests include `Authorization: Bearer <token>`
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+## Key context providers
 
-### `npm run eject`
+- `AuthContext` — current user, login/logout
+- `AssessmentContext` — active assessment ID/name + background status polling
+- `ThemeContext` — dark/light mode
 
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
+## Project structure
 
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
-
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
-
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
+```
+src/
+├── pages/         # One component per route (see table above)
+├── components/    # Shared UI components
+│   └── common/    # ASVSTestCases, AttackTree, etc.
+├── context/       # AuthContext, AssessmentContext, ThemeContext
+├── services/      # api.ts — all Axios/fetch calls to the backend
+└── App.tsx        # React Router setup
+```

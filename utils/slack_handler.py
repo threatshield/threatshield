@@ -42,6 +42,79 @@ def extract_channel_thread_from_url(slack_url):
         logging.error(f"Error extracting channel and thread from URL: {str(e)}")
         return None, None
 
+def send_slack_dm(user_email, message, blocks=None):
+    """
+    Send a direct message to a Slack user identified by their email address.
+
+    Args:
+        user_email: The email address of the recipient
+        message: The fallback message text (required by Slack even when blocks are used)
+        blocks: Optional list of Slack Block Kit blocks for rich formatting
+
+    Returns:
+        True on success, False on failure
+    """
+    try:
+        credentials = get_slack_credentials()
+        token = credentials['token']
+        if not token:
+            logging.error("Slack token not found — cannot send DM")
+            return False
+
+        headers = {
+            'Authorization': f'Bearer {token}',
+            'Content-Type': 'application/json'
+        }
+
+        # Look up the Slack user by email
+        lookup_resp = requests.get(
+            'https://slack.com/api/users.lookupByEmail',
+            headers=headers,
+            params={'email': user_email}
+        )
+        lookup_data = lookup_resp.json()
+        if not lookup_data.get('ok'):
+            logging.error(f"Could not find Slack user for email {user_email}: {lookup_data.get('error')}")
+            return False
+
+        slack_user_id = lookup_data['user']['id']
+
+        # Open a DM channel
+        dm_resp = requests.post(
+            'https://slack.com/api/conversations.open',
+            headers=headers,
+            json={'users': slack_user_id}
+        )
+        dm_data = dm_resp.json()
+        if not dm_data.get('ok'):
+            logging.error(f"Could not open DM channel with {slack_user_id}: {dm_data.get('error')}")
+            return False
+
+        channel_id = dm_data['channel']['id']
+
+        payload = {'channel': channel_id, 'text': message}
+        if blocks:
+            payload['blocks'] = blocks
+
+        # Post the message
+        post_resp = requests.post(
+            'https://slack.com/api/chat.postMessage',
+            headers=headers,
+            json=payload
+        )
+        post_data = post_resp.json()
+        if not post_data.get('ok'):
+            logging.error(f"Failed to send Slack DM to {user_email}: {post_data.get('error')}")
+            return False
+
+        logging.info(f"Slack DM sent to {user_email}")
+        return True
+
+    except Exception as e:
+        logging.error(f"Error sending Slack DM to {user_email}: {e}")
+        return False
+
+
 def load_slack_thread(slack_url):
     """
     Load messages from a Slack thread.

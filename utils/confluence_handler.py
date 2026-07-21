@@ -5,7 +5,7 @@ import requests
 import json
 from urllib.parse import urlparse, parse_qs
 from langchain_community.document_loaders.confluence import ConfluenceLoader
-from langchain.schema import Document
+from langchain_core.documents import Document
 from utils.document_handler import process_pdf_file
 from utils.config import get_confluence_credentials
 

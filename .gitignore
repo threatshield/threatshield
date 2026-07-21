@@ -1,5 +1,6 @@
 # Environment variables
 .env
+threat-shield/.env
 
 # Python
 __pycache__/
@@ -33,6 +34,7 @@ ts/
 # IDE
 .idea/
 .vscode/
+.claude/
 *.swp
 *.swo
 
@@ -43,4 +45,11 @@ Thumbs.db
 # Project specific
 config.json
 uploads/
-storage/
+docs/
+codepipeline/
+storage/**
+!storage/data/
+!storage/data/settings/
+!storage/data/settings/settings.json
+files/outputreport.txt
+!storage/data/teams.json

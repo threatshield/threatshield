@@ -1,10 +1,17 @@
-FROM node:18-alpine
+FROM node:18-alpine AS builder
 WORKDIR /app
 COPY threat-shield/package*.json ./
 RUN npm install
 COPY threat-shield/ .
-EXPOSE 3000
-ENV PORT=3000
-ENV WDS_SOCKET_HOST=0.0.0.0
-ENV DANGEROUSLY_DISABLE_HOST_CHECK=true
-CMD ["npm", "run", "dev"]
+ARG REACT_APP_DEPLOYMENT_TYPE
+ARG REACT_APP_API_URL_DEV
+ARG REACT_APP_API_URL_STAGE
+ARG REACT_APP_API_URL_PROD
+RUN npm run build
+
+FROM node:18-alpine
+WORKDIR /app
+RUN npm install -g serve
+COPY --from=builder /app/build ./build
+EXPOSE 80
+CMD ["serve", "-s", "build", "-l", "80"]

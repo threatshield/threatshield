@@ -2,6 +2,45 @@
 @tailwind components;
 @tailwind utilities;
 
+html {
+  /* zoom: 0.8 scales the whole app to 80%, so a 100vh element renders at only
+     ~80% of the visible viewport and leaves a gap at the bottom of short pages.
+     Setting a background-color on the root propagates to the whole viewport canvas
+     and fills that gap in light mode (slate-50, matches .dark-grid-bg light mode).
+     html.dark below keeps its own background via higher specificity. */
+  zoom: 0.8;
+  background-color: #f8fafc;
+}
+
+/* ── ReactFlow: remove default grey selection outline on nodes ──────────────── */
+.react-flow__node.selected,
+.react-flow__node:focus,
+.react-flow__node:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* ── Dark mode full-page grid background ───────────────────────────────────── */
+html.dark {
+  background-color: #0a1628;
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.04) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.dark-grid-bg {
+  background-color: #f8fafc; /* slate-50 for light */
+}
+
+html.dark .dark-grid-bg {
+  background-color: #0a1628;
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.04) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
 /* Mermaid diagram styles */
 .mermaid {
   background-color: white;

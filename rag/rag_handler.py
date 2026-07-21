@@ -1,13 +1,16 @@
 import os
+
+_STORAGE_DIR = os.environ.get('STORAGE_PATH', 'storage')
 import uuid
 import json
 import base64
 import logging
 import numpy as np
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 from pathlib import Path
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Chroma
 from langchain_core.embeddings import Embeddings
 from llm.openai_module import OpenAIHandler
@@ -93,12 +96,13 @@ class CustomEmbeddings(Embeddings):
 class RAGHandler:
     def __init__(self, openai_handler: OpenAIHandler, persist_dir: str, assessment_id: str, table_name: str = "docs"):
         self.openai_handler = openai_handler
-        self.persist_dir = str(Path(persist_dir) / str(uuid.uuid4()))
+        # Stable path per assessment so downstream pipeline steps can reopen the same DB
+        self.persist_dir = str(Path(_STORAGE_DIR) / assessment_id / 'vectordb')
         self.table_name = table_name
         self.prompt_manager = PromptManager()
         self.client = openai_handler.client
         self.method = get_llm_method()
-        self.storage_handler = StorageHandler()
+        self.storage_handler = StorageHandler(base_dir=_STORAGE_DIR)
         self.assessment_id = assessment_id
         logging.info(f"Initializing RAG with {self.method} method for assessment {assessment_id}")
 
@@ -163,12 +167,12 @@ class RAGHandler:
                 
         # Use a simpler text splitter with larger chunks
         text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=2000,  # Larger chunks
-            chunk_overlap=100,  # Smaller overlap
+            chunk_size=1024,
+            chunk_overlap=150,
             separators=["\n\n", "\n", ".", " ", ""],  # More granular separators
             keep_separator=True
         )
-        print(f"[DEBUG] Using text splitter with chunk_size=2000, chunk_overlap=100")
+        print(f"[DEBUG] Using text splitter with chunk_size=1024, chunk_overlap=150")
         
         # Process each document individually to ensure proper chunking
         all_splits = []
@@ -325,19 +329,25 @@ class RAGHandler:
         self.vectordb = self.create_vector_db(splits)
         print(f"[DEBUG] Vector database created with {self.vectordb._collection.count()} documents")
 
-    def get_context(self, query: str) -> str:
+    def get_context(self, query: str, k: int = None, search_type: str = "mmr") -> str:
         """Get context from vector database using query."""
         # Get collection size and adjust k accordingly
         collection_size = self.vectordb._collection.count()
-        k = min(10, collection_size)
+        k = min(k if k is not None else 10, collection_size)
         logging.info(f"Retrieving {k} documents from a collection of {collection_size} documents")
         print(f"[DEBUG] get_context: Retrieving {k} documents from a collection of {collection_size} documents")
         print(f"[DEBUG] Query: {query[:100]}..." if len(query) > 100 else f"[DEBUG] Query: {query}")
-        
-        retriever = self.vectordb.as_retriever(
-            search_type="similarity", 
-            search_kwargs={"k": k}
-        )
+
+        if search_type == "similarity":
+            retriever = self.vectordb.as_retriever(
+                search_type="similarity",
+                search_kwargs={"k": k}
+            )
+        else:
+            retriever = self.vectordb.as_retriever(
+                search_type="mmr",
+                search_kwargs={"k": k, "fetch_k": min(k * 4, collection_size), "lambda_mult": 0.7}
+            )
         docs = retriever.get_relevant_documents(query)
         logging.info(f"Retrieved {len(docs)} relevant documents")
         print(f"[DEBUG] Retrieved {len(docs)} relevant documents")
@@ -469,8 +479,12 @@ class RAGHandler:
                     raise ValueError("Each service must be an object with exactly one 'Name' field containing a string")
                     
                 logging.info(f"Parsed services: {json_services}")
-                
-                # Create files directory if it doesn't exist
+
+                # Save per-assessment (primary) — prevents stale data leaking across assessments
+                assessment_ms_path = os.path.join(_STORAGE_DIR, self.assessment_id, 'microservices.json')
+                os.makedirs(os.path.dirname(assessment_ms_path), exist_ok=True)
+                self.save_to_file(assessment_ms_path, json_services)
+                # Also keep global copy for backward compatibility
                 os.makedirs("files", exist_ok=True)
                 self.save_to_file("files/microservices.json", json_services)
                 return json_services
@@ -514,9 +528,89 @@ class RAGHandler:
             logging.error(f"Error saving to file: {e}")
             raise
 
-    def append_to_file(self, content: str) -> None:
-        """Append content to output report."""
-        self.save_to_file("files/outputreport.txt", content, mode="a")
+    def _get_methodology(self) -> str:
+        """Read threat modeling methodology from details.json."""
+        try:
+            details_path = os.path.join(_STORAGE_DIR, self.assessment_id, 'details.json')
+            with open(details_path, 'r') as f:
+                details = json.load(f)
+            return details.get('threatModelingMethodology', 'STRIDE')
+        except Exception:
+            return 'STRIDE'
+
+    def _get_service_names(self) -> List[str]:
+        """Get service names from per-assessment microservices.json."""
+        try:
+            ms_path = os.path.join(_STORAGE_DIR, self.assessment_id, 'microservices.json')
+            if os.path.exists(ms_path):
+                with open(ms_path, 'r') as f:
+                    services = json.load(f)
+                return [s['Name'] for s in services.get('services', [])]
+        except Exception:
+            pass
+        return []
+
+    def get_security_context(self) -> Dict[str, str]:
+        """Stage 2: Run security-focused queries against the vector DB for threat modeling.
+
+        Returns a dict keyed by security domain, each value is the raw retrieved
+        context (top-3 chunks) for that domain.  Using k=3 per query keeps the
+        total added to the prompt manageable while still being targeted.
+        """
+        methodology = self._get_methodology()
+
+        # Base queries — always run regardless of methodology
+        queries: Dict[str, str] = {
+            "authentication":        "How does a user authenticate? What tokens or sessions are created and where are they stored?",
+            "data_flows":            "What data flows between services? Which API endpoints call external systems or other microservices?",
+            "sensitive_data":        "What sensitive or personal data does this application store or process? Where is it written and who can read it?",
+            "access_control":        "How are user roles and permissions enforced? Which endpoints check authorization and how?",
+            "input_handling":        "Where does the application accept user-supplied input? How is it validated or sanitized before use?",
+            "external_integrations": "Which third-party APIs or external services does this application call? What data is sent to them?",
+            "audit_logging":         "What events are logged? Where are logs written and who can access them?",
+            "secrets_config":        "Where are API keys, secrets, and credentials configured? Are any hardcoded or stored in environment variables?",
+        }
+
+        # Methodology-specific additions
+        if methodology == 'STRIDE':
+            queries.update({
+                "spoofing_context":        "How does the application verify the identity of users or services? Where could an attacker impersonate a legitimate user?",
+                "tampering_context":       "Which data writes or state changes lack integrity checks? Where can input modify data without validation?",
+                "repudiation_context":     "Which critical actions such as payments, logins, or data changes are logged with enough detail to reconstruct what happened?",
+                "info_disclosure_context": "Which responses, error messages, or logs might reveal sensitive data to an unauthorized party?",
+                "dos_context":             "Which operations are computationally expensive or unbounded? Where could an attacker trigger resource exhaustion?",
+                "privilege_context":       "Where does the application elevate privileges? Which actions require admin rights and how is that enforced?",
+            })
+        elif methodology == 'PASTA':
+            queries.update({
+                "app_decomposition":      "What are the main components, entry points, and trust boundaries of this application?",
+                "threat_analysis":        "What are the likely threat actors and attack scenarios targeting this application?",
+                "vulnerability_analysis": "What known weaknesses, misconfigurations, or security gaps exist in this application?",
+            })
+
+        # Dynamic: per-service queries (cap at 3 to avoid prompt explosion)
+        for service in self._get_service_names()[:3]:
+            safe_key = "service_" + service.lower().replace(' ', '_').replace('-', '_')
+            queries[safe_key] = f"How does {service} handle authentication and authorization? What data does it process and what are its external dependencies?"
+
+        security_context: Dict[str, str] = {}
+
+        def _fetch(item):
+            key, query = item
+            try:
+                ctx = self.get_context(query, k=5, search_type="similarity")
+                return key, ctx.strip() if ctx.strip() else None
+            except Exception as e:
+                logging.warning(f"Security context query '{key}' failed: {e}")
+                return key, None
+
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            for key, ctx in executor.map(_fetch, queries.items()):
+                if ctx:
+                    security_context[key] = ctx
+
+        logging.info(f"Stage 2 security context: {len(security_context)} domains retrieved")
+        return security_context
 
     def rag_main(self, documents: List[Any]) -> str:
         """Main RAG process with optimized document processing."""
@@ -550,9 +644,8 @@ class RAGHandler:
         # Then process each section using cached contexts
         for section in sections:
             section_header = f"\n# {section.replace('_', ' ').title()}\n"
-            self.append_to_file(section_header)
             prompt += section_header
-            
+
             context = section_contexts.get(section, "")
             result = self.ask_ai(section, context)
             # Store the result without the section header
@@ -563,19 +656,21 @@ class RAGHandler:
                 section_results[section] = clean_result.strip()
             else:
                 section_results[section] = result
-            self.append_to_file(result)
             prompt += result
 
         # Update additionalinfo.json with functional_flows and third_party_integrations
         try:
             # Get existing additionalinfo.json content
-            additional_info_path = os.path.join('storage', self.assessment_id, 'additionalinfo.json')
+            additional_info_path = os.path.join(_STORAGE_DIR, self.assessment_id, 'additionalinfo.json')
             
             if os.path.exists(additional_info_path):
                 with open(additional_info_path, 'r') as f:
                     enhanced_info = json.load(f)
             else:
                 enhanced_info = {
+                    "confluenceDoc": None,
+                    "slackThread": None,
+                    "meetingTranscript": None
                 }
             
             # Update with new sections while preserving existing data
@@ -594,36 +689,73 @@ class RAGHandler:
 
         # Process microservice summaries
         ms_header = "\n# Microservice Summaries\n"
-        self.append_to_file(ms_header)
         prompt += ms_header
 
         try:
-            with open("files/microservices.json", "r", encoding="utf-8") as f:
-                services = json.load(f)
-                service_names = [service["Name"] for service in services["services"]]
+            # Use per-assessment microservices.json to avoid stale data from other assessments
+            assessment_ms_path = os.path.join(_STORAGE_DIR, self.assessment_id, 'microservices.json')
 
-                # Cache contexts for all services first
-                service_contexts = {}
-                for service in service_names:
-                    prompt_data = self.prompt_manager.get_prompt("microservice_summary")
-                    if prompt_data.query:
-                        query = prompt_data.query.format(service=service)
-                        service_contexts[service] = self.get_context(query)
+            if os.path.exists(assessment_ms_path):
+                ms_path = assessment_ms_path
+                logging.info(f"Using per-assessment microservices.json for {self.assessment_id}")
+            else:
+                # No architecture diagram was provided — derive service name from details.json
+                details_path = os.path.join(_STORAGE_DIR, self.assessment_id, 'details.json')
+                service_name = None
+                if os.path.exists(details_path):
+                    try:
+                        with open(details_path, 'r') as f:
+                            details = json.load(f)
+                        service_name = (details.get('queue', {}).get('service_name')
+                                        or details.get('projectName'))
+                    except Exception:
+                        pass
+                if service_name:
+                    logging.info(f"No diagram for {self.assessment_id}; using service_name '{service_name}' as sole microservice")
+                    services = {"services": [{"Name": service_name}]}
+                    service_names = [service_name]
+                else:
+                    logging.warning("No per-assessment microservices.json and no service_name found; skipping microservice summaries")
+                    service_names = []
+                    services = {"services": []}
+                ms_path = None  # already built service_names
 
-                # Then process each service using cached contexts
-                for service in service_names:
-                    service_header = f"\n## {service} Microservice\n"
-                    self.append_to_file(service_header)
-                    prompt += service_header
-                    
-                    context = service_contexts.get(service, "")
-                    result = self.ask_ai("microservice_summary", context, service=service)
-                    self.append_to_file(result)
-                    prompt += result
+            if ms_path:
+                with open(ms_path, "r", encoding="utf-8") as f:
+                    services = json.load(f)
+                    service_names = [service["Name"] for service in services["services"]]
+
+            # Cache contexts for all services first
+            service_contexts = {}
+            for service in service_names:
+                prompt_data = self.prompt_manager.get_prompt("microservice_summary")
+                if prompt_data.query:
+                    query = prompt_data.query.format(service=service)
+                    service_contexts[service] = self.get_context(query)
+
+            # Then process each service using cached contexts
+            for service in service_names:
+                service_header = f"\n## {service} Microservice\n"
+                prompt += service_header
+
+                context = service_contexts.get(service, "")
+                result = self.ask_ai("microservice_summary", context, service=service)
+                prompt += result
                     
         except Exception as e:
             logging.error(f"Error processing microservices: {e}")
             raise
 
         logging.info("RAG main process completed")
-        return prompt
+
+        # Stage 2: security-focused queries against the same vector DB
+        security_context: Dict[str, str] = {}
+        try:
+            security_context = self.get_security_context()
+        except Exception as e:
+            logging.warning(f"Stage 2 security context failed (non-fatal, continuing): {e}")
+
+        return {
+            "app_summary": prompt,
+            "security_context": security_context,
+        }

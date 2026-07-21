@@ -103,6 +103,22 @@
         <div class="form-section">
             <h2>Document Source</h2>
             <div class="form-group">
+                <label for="confluence_url">Confluence URL:</label>
+                <input type="text" id="confluence_url" name="confluence_url">
+            </div>
+            <div class="form-group">
+                <label for="api_key">API Key:</label>
+                <input type="text" id="api_key" name="api_key">
+            </div>
+            <div class="form-group">
+                <label for="username">Username:</label>
+                <input type="text" id="username" name="username">
+            </div>
+            <div class="form-group">
+                <label for="space_key">Space Key:</label>
+                <input type="text" id="space_key" name="space_key">
+            </div>
+            <div class="form-group">
                 <label for="pdf_file">Upload PDF File:</label>
                 <input type="file" id="pdf_file" name="pdf_file">
             </div>
@@ -182,7 +198,11 @@
                 <textarea id="sensitive_data" name="sensitive_data" placeholder="Describe the types of sensitive data handled by the application (e.g., PII, financial data, health records, etc.)"></textarea>
             </div>
             
-
+            <div class="form-group">
+                <label for="secbugs">Known Security Issues (Optional):</label>
+                <textarea id="secbugs" name="secbugs" placeholder="List any known security issues or vulnerabilities (e.g., SECBUG-1: XSS vulnerability in search form)"></textarea>
+            </div>
+            
             <div class="form-group">
                 <label for="custom_prompt">Additional Context (Optional):</label>
                 <textarea id="custom_prompt" name="custom_prompt" placeholder="Provide any additional context that might be helpful for threat modeling (e.g., specific security concerns, compliance requirements, etc.)"></textarea>
@@ -300,6 +320,7 @@
                     authentication: Array.from(formData.getAll('authentication[]')),
                     internet_facing: formData.get('internet_facing'),
                     sensitive_data: formData.get('sensitive_data'),
+                    secbugs: formData.get('secbugs'),
                     custom_prompt: formData.get('custom_prompt')
                 };
                 

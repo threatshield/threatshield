@@ -1,13 +1,34 @@
 {
     "services": [
         {
-            "Name": "Frontend"
+            "Name": "UI Service"
         },
         {
-            "Name": "Server"
+            "Name": "Authentication Service"
         },
         {
-            "Name": "File System"
+            "Name": "Account Service"
+        },
+        {
+            "Name": "Transaction Service"
+        },
+        {
+            "Name": "Notification Service"
+        },
+        {
+            "Name": "Reporting Service"
+        },
+        {
+            "Name": "Payment Gateway"
+        },
+        {
+            "Name": "External APIs"
+        },
+        {
+            "Name": "Third-Party Services"
+        },
+        {
+            "Name": "API Gateway"
         }
     ]
 }

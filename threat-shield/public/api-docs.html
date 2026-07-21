@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ThreatShield · API Docs</title>
+  <link rel="icon" href="/favicon.ico" />
+  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5.17.14/swagger-ui.css" />
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: 'IBM Plex Sans', system-ui, sans-serif;
+      min-height: 100vh;
+      /* Light mode (default) */
+      background: #f6f8fb;
+    }
+    /* ── Dark mode ─────────────────────────────────────── */
+    body.ts-dark {
+      background: linear-gradient(165deg, #04080f 0%, #080f1e 50%, #04080f 100%);
+    }
+
+    /* ── Top bar ───────────────────────────────────────── */
+    .ts-topbar {
+      position: sticky; top: 0; z-index: 50;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 40px;
+      backdrop-filter: blur(16px);
+      background: rgba(255,255,255,0.85);
+      border-bottom: 1px solid rgba(15,23,42,0.08);
+    }
+    body.ts-dark .ts-topbar {
+      background: rgba(4,8,15,0.7);
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .ts-brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+    .ts-brand-mark {
+      width: 30px; height: 30px; border-radius: 9px;
+      background: linear-gradient(135deg, rgba(59,130,246,0.95) 0%, rgba(99,102,241,0.95) 100%);
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 0 0 1px rgba(96,165,250,0.3), 0 6px 18px rgba(37,99,235,0.35);
+    }
+    .ts-brand-name { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; color: #0f172a; }
+    body.ts-dark .ts-brand-name { color: #fff; }
+    .ts-brand-name span { color: #2563eb; }
+    body.ts-dark .ts-brand-name span { color: #60a5fa; }
+
+    .ts-actions { display: flex; align-items: center; gap: 10px; }
+    .ts-btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 8px 16px; border-radius: 9px;
+      border: 1px solid rgba(15,23,42,0.12);
+      background: rgba(15,23,42,0.03);
+      color: #0f172a;
+      font-size: 13px; font-weight: 500; text-decoration: none; cursor: pointer;
+      transition: background 0.2s ease, border-color 0.2s ease;
+    }
+    .ts-btn:hover { background: rgba(15,23,42,0.07); border-color: rgba(15,23,42,0.2); }
+    body.ts-dark .ts-btn {
+      border: 1px solid rgba(255,255,255,0.1);
+      background: rgba(255,255,255,0.04);
+      color: rgba(255,255,255,0.92);
+    }
+    body.ts-dark .ts-btn:hover { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.18); }
+    .ts-toggle { padding: 8px 12px; }
+
+    #swagger-ui { max-width: 1180px; margin: 0 auto; padding: 24px 24px 80px; }
+
+    /* ── Dark-theme overrides for Swagger UI (only when body.ts-dark) ── */
+    body.ts-dark .swagger-ui, body.ts-dark .swagger-ui .info .title,
+    body.ts-dark .swagger-ui .opblock-tag, body.ts-dark .swagger-ui .opblock .opblock-summary-operation-id,
+    body.ts-dark .swagger-ui .opblock .opblock-summary-path, body.ts-dark .swagger-ui .opblock .opblock-summary-description,
+    body.ts-dark .swagger-ui table thead tr td, body.ts-dark .swagger-ui table thead tr th,
+    body.ts-dark .swagger-ui .parameter__name, body.ts-dark .swagger-ui .parameter__type,
+    body.ts-dark .swagger-ui .response-col_status, body.ts-dark .swagger-ui label,
+    body.ts-dark .swagger-ui .markdown p, body.ts-dark .swagger-ui .markdown li,
+    body.ts-dark .swagger-ui .model, body.ts-dark .swagger-ui .model-title { color: rgba(255,255,255,0.85); }
+    body.ts-dark .swagger-ui .info .title small.version-stamp { background: #2563eb; }
+    body.ts-dark .swagger-ui .scheme-container { background: transparent; box-shadow: none; }
+    body.ts-dark .swagger-ui .opblock-tag { border-bottom: 1px solid rgba(255,255,255,0.08); }
+    body.ts-dark .swagger-ui .opblock { background: rgba(255,255,255,0.025); border: 1px solid rgba(255,255,255,0.07); box-shadow: none; }
+    body.ts-dark .swagger-ui .opblock .opblock-section-header { background: rgba(255,255,255,0.03); }
+    body.ts-dark .swagger-ui section.models { border: 1px solid rgba(255,255,255,0.08); }
+    body.ts-dark .swagger-ui .info a, body.ts-dark .swagger-ui a.nostyle { color: #60a5fa; }
+  </style>
+</head>
+<body>
+  <div class="ts-topbar">
+    <a class="ts-brand" href="/?skipLoader=1" title="Back to ThreatShield">
+      <div class="ts-brand-mark">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+      </div>
+      <span class="ts-brand-name"><span>Threat</span>Shield · API</span>
+    </a>
+    <div class="ts-actions">
+      <a class="ts-btn" href="/?skipLoader=1">← back to site</a>
+      <button class="ts-btn ts-toggle" id="ts-theme-toggle" type="button" aria-label="Toggle theme"></button>
+    </div>
+  </div>
+
+  <div id="swagger-ui"></div>
+
+  <script src="https://unpkg.com/swagger-ui-dist@5.17.14/swagger-ui-bundle.js" crossorigin></script>
+  <script src="https://unpkg.com/swagger-ui-dist@5.17.14/swagger-ui-standalone-preset.js" crossorigin></script>
+  <script>
+    (function () {
+      var SUN = '☀️ light';
+      var MOON = '🌙 dark';
+      var toggle = document.getElementById('ts-theme-toggle');
+
+      function apply(theme) {
+        var dark = theme === 'dark';
+        document.body.classList.toggle('ts-dark', dark);
+        // Button shows the mode you can switch TO
+        toggle.textContent = dark ? SUN : MOON;
+      }
+
+      // Light mode is the default; honour a stored preference if present
+      var stored = null;
+      try { stored = localStorage.getItem('ts-docs-theme'); } catch (e) {}
+      apply(stored === 'dark' ? 'dark' : 'light');
+
+      toggle.addEventListener('click', function () {
+        var next = document.body.classList.contains('ts-dark') ? 'light' : 'dark';
+        apply(next);
+        try { localStorage.setItem('ts-docs-theme', next); } catch (e) {}
+      });
+    })();
+
+    window.onload = function () {
+      window.ui = SwaggerUIBundle({
+        url: '/openapi.yaml',
+        dom_id: '#swagger-ui',
+        deepLinking: true,
+        presets: [
+          SwaggerUIBundle.presets.apis,
+          SwaggerUIStandalonePreset
+        ],
+        layout: 'BaseLayout',
+        docExpansion: 'list',
+        defaultModelsExpandDepth: 0,
+        tryItOutEnabled: true,
+        persistAuthorization: true
+      });
+    };
+  </script>
+</body>
+</html>

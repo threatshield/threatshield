@@ -30,7 +30,7 @@ export default function NavBar() {
             
             // Sort reports by timestamp in descending order (newest first)
             const sortedReports = validReports.sort((a: ReportMetadata, b: ReportMetadata) => 
-              new Date(b.details?.timestamp || '').getTime() - new Date(a.details?.timestamp || '').getTime()
+              new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
             );
             
             console.log('Filtered and sorted reports:', sortedReports); // Add logging

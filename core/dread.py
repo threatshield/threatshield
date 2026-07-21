@@ -1,6 +1,8 @@
 import json
 import logging
 import os
+
+_STORAGE_DIR = os.environ.get('STORAGE_PATH', 'storage')
 from rag.rag_handler import PromptManager
 
 # Configure logging
@@ -12,7 +14,7 @@ class DreadHandler:
         self.client = openai_handler.client
         self.prompt_manager = PromptManager()
 
-    def create_dread_assessment_prompt(self, threat_model_result, attack_tree_data, assessment_id=None):
+    def create_dread_assessment_prompt(self, threat_model_result, attack_tree_data, assessment_id=None, security_context=None):
         """
         Create a prompt for generating a DREAD assessment using threats from threat model and attack tree.
         """
@@ -32,8 +34,9 @@ class DreadHandler:
             logging.error(error_msg)
             raise ValueError(error_msg)
         
-        # Get the DREAD assessment prompt template
-        prompt_data = self.prompt_manager.get_prompt("dread_assessment")
+        # Get the appropriate DREAD assessment prompt template based on methodology
+        prompt_key = "pasta_dread_assessment" if methodology == "PASTA" else "dread_assessment"
+        prompt_data = self.prompt_manager.get_prompt(prompt_key)
         
         threats = threat_model_result.get('threat_model', [])
         
@@ -52,6 +55,16 @@ class DreadHandler:
         if attack_tree_data and 'attack_tree' in attack_tree_data:
             attack_tree = attack_tree_data['attack_tree']
             attack_tree_context = f"\n\nAttack Tree Analysis:\n{json.dumps(attack_tree, indent=2)}"
+
+        # Format security context from RAG if available
+        security_context_section = ""
+        if security_context:
+            sections = []
+            for domain, context in security_context.items():
+                if context and context.strip():
+                    sections.append(f"[{domain.replace('_', ' ').title()}]\n{context.strip()}")
+            if sections:
+                security_context_section = "\n\nApplication Security Context (from RAG analysis):\n" + "\n\n".join(sections)
         
         # Add stronger JSON formatting instructions for Bedrock
         json_instructions = ""
@@ -61,7 +74,41 @@ IMPORTANT: You MUST respond with valid, properly formatted JSON that follows the
 Your entire response must be parseable as JSON. Do not include any explanatory text outside the JSON structure.
 The JSON must include the key "Risk Assessment" with an array of threat assessments exactly as shown.
 """
-        
+
+        dread_rubric = """
+SCORING RUBRIC — Apply this scale consistently across every threat. Do not cluster scores around 6-8; use the full range.
+
+Damage (D):
+  1-3: Degrades a non-critical feature; no data exposed
+  4-6: Exposes non-PII user data or disrupts a business flow
+  7-9: Exposes PII, financial data, or causes material financial harm
+  10:  Full account takeover, mass PII breach, or irreversible financial damage
+
+Reproducibility (R):
+  1-3: Requires a specific rare condition or physical access
+  4-6: Reproducible with a valid user account and moderate skill
+  7-9: Reproducible by any authenticated user with basic tools
+  10:  Unauthenticated, deterministic, scriptable
+
+Exploitability (E):
+  1-3: Nation-state or insider threat level skill required
+  4-6: Requires application knowledge and scripting ability
+  7-9: Public tools exist; documented attack pattern
+  10:  Automated exploit or public CVE with working PoC
+
+Affected Users (A):
+  1-3: Single user or internal service only
+  4-6: A subset of users sharing a feature or DEPARTMENT
+  7-9: All users of the affected product
+  10:  All platform users or cross-DEPARTMENT impact
+
+Discoverability (Di):
+  1-3: Requires source code access or internal knowledge
+  4-6: Observable via normal app usage with some exploration
+  7-9: Trivially discoverable via API fuzzing or documentation
+  10:  Publicly documented or visible in client-side code
+"""
+
         prompt = f"""
 {json_instructions}
 {prompt_data.system_context}
@@ -72,6 +119,9 @@ Below is the list of identified threats:
 {formatted_threats}
 
 {attack_tree_context}
+{security_context_section}
+
+{dread_rubric}
 
 {prompt_data.instructions}
 
@@ -91,27 +141,30 @@ Ensure the JSON response is correctly formatted and does not contain any additio
         
         # Trim whitespace
         text = text.strip()
-        
+
+        # Strip control characters that break JSON parsing
+        import re
+        text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', text)
+
         # If the text starts with a non-JSON character, try to find the start of the JSON
         if text and text[0] not in ['{', '[']:
             # Look for the first occurrence of '{'
             json_start = text.find('{')
             if json_start >= 0:
                 text = text[json_start:]
-        
+
         # If the text ends with a non-JSON character, try to find the end of the JSON
         if text and text[-1] not in ['}', ']']:
             # Look for the last occurrence of '}'
             json_end = text.rfind('}')
             if json_end >= 0:
                 text = text[:json_end+1]
-        
+
         # Remove any trailing commas before closing brackets (common JSON parsing error)
         text = text.replace(",}", "}")
         text = text.replace(",]", "]")
-        
+
         # Remove any comments (which are not valid JSON)
-        import re
         text = re.sub(r'//.*?\n', '\n', text)  # Remove single-line comments
         
         logging.debug(f"Cleaned JSON text: {text[:100]}..." if len(text) > 100 else f"Cleaned JSON text: {text}")
@@ -140,7 +193,7 @@ Ensure the JSON response is correctly formatted and does not contain any additio
                     {"role": "system", "content": system_message},
                     {"role": "user", "content": prompt}
                 ],
-                "max_tokens": 8000
+                "max_tokens": self.openai_handler.max_output_tokens
             }
             
             # Add provider-specific parameters
@@ -154,31 +207,46 @@ Ensure the JSON response is correctly formatted and does not contain any additio
             # Make the API call
             logging.info(f"Sending request to {method} with model {self.openai_handler.model}")
             response = self.client.chat.completions.create(**params)
-            
+            if hasattr(response, 'usage') and response.usage:
+                self._last_usage = (response.usage.prompt_tokens, response.usage.completion_tokens)
+            else:
+                self._last_usage = None
+
+            finish_reason = response.choices[0].finish_reason
+            if finish_reason == "length":
+                logging.warning(
+                    f"[DREAD] Response truncated by token limit (finish_reason=length). "
+                    f"Output may be incomplete. model={self.openai_handler.model}, max_tokens={params['max_tokens']}"
+                )
+
             # Extract and parse the response content
             response_text = response.choices[0].message.content
             logging.info(f"Response content length: {len(response_text)}")
             logging.debug(f"Response content preview: {response_text[:200]}...")
-            
+
             # Clean the response text to handle potential formatting issues
             cleaned_text = self.clean_json_response(response_text)
-            
+
             # Try to parse the JSON response
             try:
-                response_content = json.loads(cleaned_text)
-                logging.info("Successfully parsed JSON response")
-                
-                # Validate the response structure
+                try:
+                    response_content = json.loads(cleaned_text)
+                    logging.info("Successfully parsed JSON response")
+                except json.JSONDecodeError as je:
+                    logging.warning(f"json.loads failed ({je}), attempting json_repair fallback")
+                    from json_repair import repair_json
+                    response_content = json.loads(repair_json(cleaned_text))
+                    logging.info("Successfully parsed JSON response via json_repair")
+
                 if "Risk Assessment" not in response_content:
-                    logging.warning("Response missing 'Risk Assessment' field, attempting to fix structure")
-                    # Try to fix the structure if possible
+                    logging.warning("Response missing 'Risk Assessment' field, fixing structure")
                     if not response_content.get("Risk Assessment"):
                         response_content["Risk Assessment"] = []
-                
+
                 return response_content
-                
-            except json.JSONDecodeError as je:
-                logging.error(f"Failed to parse JSON response: {str(je)}")
+
+            except Exception as je:
+                logging.error(f"Failed to parse DREAD JSON even after repair: {str(je)}")
                 logging.error(f"Response was: {response_text}")
                 raise
             
@@ -203,7 +271,7 @@ Ensure the JSON response is correctly formatted and does not contain any additio
         Get the methodology from details.json for the given assessment_id.
         Raises an error if details.json doesn't exist or doesn't contain the methodology.
         """
-        details_path = os.path.join('storage', assessment_id, 'details.json')
+        details_path = os.path.join(_STORAGE_DIR, assessment_id, 'details.json')
         if not os.path.exists(details_path):
             error_msg = f"details.json not found for assessment {assessment_id}"
             logging.error(error_msg)
@@ -223,17 +291,32 @@ Ensure the JSON response is correctly formatted and does not contain any additio
             logging.error(error_msg)
             raise ValueError(error_msg)
     
-    def json_to_markdown(self, dread_assessment, assessment_id=None):
+    def d(self, dread_assessment, assessment_id=None):
         """
         Convert JSON DREAD assessment to Markdown for display.
         """
         markdown_output = "\n\n## DREAD Risk Assessment\n\n"
         
-        markdown_output += "| Threat Type | Scenario | Damage Potential | Reproducibility | Exploitability | Affected Users | Discoverability | Risk Score |\n"
-        markdown_output += "|-------------|----------|------------------|-----------------|----------------|----------------|-----------------|-------------|\n"
+        # Determine which methodology was used based on details.json
+        is_pasta = False
+        if assessment_id:
+            methodology = self._get_methodology_from_details(assessment_id)
+            is_pasta = methodology == 'PASTA'
+        else:
+            # Fallback to the old method if assessment_id is not provided
+            threats = dread_assessment.get("Risk Assessment", [])
+            if threats and "Business Impact" in threats[0]:
+                is_pasta = True
+        
+        # Create appropriate table headers based on methodology
+        if is_pasta:
+            markdown_output += "| Threat Type | Scenario | Business Impact | Damage Potential | Reproducibility | Exploitability | Affected Users | Discoverability | Risk Score |\n"
+            markdown_output += "|-------------|----------|-----------------|------------------|-----------------|----------------|----------------|-----------------|-------------|\n"
+        else:
+            markdown_output += "| Threat Type | Scenario | Damage Potential | Reproducibility | Exploitability | Affected Users | Discoverability | Risk Score |\n"
+            markdown_output += "|-------------|----------|------------------|-----------------|----------------|----------------|-----------------|-------------|\n"
         
         try:
-            threats = dread_assessment.get("Risk Assessment", [])
             for threat in threats:
                 if isinstance(threat, dict):
                     damage_potential = threat.get('Damage Potential', 0)
@@ -245,24 +328,31 @@ Ensure the JSON response is correctly formatted and does not contain any additio
                     # Calculate the Risk Score
                     risk_score = (damage_potential + reproducibility + exploitability + affected_users + discoverability) / 5
                     
-                    markdown_output += f"| {threat.get('Threat Type', 'N/A')} | {threat.get('Scenario', 'N/A')} | {damage_potential} | {reproducibility} | {exploitability} | {affected_users} | {discoverability} | {risk_score:.2f} |\n"
+                    if is_pasta:
+                        business_impact = threat.get('Business Impact', 'N/A')
+                        markdown_output += f"| {threat.get('Threat Type', 'N/A')} | {threat.get('Scenario', 'N/A')} | {business_impact} | {damage_potential} | {reproducibility} | {exploitability} | {affected_users} | {discoverability} | {risk_score:.2f} |\n"
+                    else:
+                        markdown_output += f"| {threat.get('Threat Type', 'N/A')} | {threat.get('Scenario', 'N/A')} | {damage_potential} | {reproducibility} | {exploitability} | {affected_users} | {discoverability} | {risk_score:.2f} |\n"
         except Exception as e:
             logging.error(f"Error converting DREAD assessment to markdown: {str(e)}")
             markdown_output += f"| Error | Failed to format DREAD assessment: {str(e)} | - | - | - | - | - | - |\n"
         
         return markdown_output
 
-    def generate_dread_assessment(self, threat_model_result, attack_tree_data=None, assessment_id=None):
+    def generate_dread_assessment(self, prompt, assessment_id=None):
         """
         Generate a DREAD assessment based on threat model results and attack tree data.
         """
         logging.info("Generating DREAD assessment")
         
-        # Create the prompt using threat model results and attack tree data
-        prompt = self.create_dread_assessment_prompt(threat_model_result, attack_tree_data, assessment_id)
-        
         # Get the DREAD assessment
         assessment = self.get_dread_assessment(prompt)
+        if assessment_id and getattr(self, '_last_usage', None):
+            try:
+                from utils.storage import accumulate_pipeline_cost
+                accumulate_pipeline_cost(assessment_id, 'dread', self._last_usage[0], self._last_usage[1], self.openai_handler.model)
+            except Exception:
+                pass
         
         # Convert to markdown, passing the assessment_id
         # markdown = self.json_to_markdown(assessment, assessment_id)

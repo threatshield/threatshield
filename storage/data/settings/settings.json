@@ -1,0 +1,65 @@
+{
+  "admins": [],
+  "darkMode": false,
+  "llmConfig": {
+    "base_url": "http://localhost:42069",
+    "large_output_model": "claude-sonnet-4-6",
+    "method": "BEDROCK",
+    "model": "claude-sonnet-4-6",
+    "tested": true
+  },
+  "mcpServers": [],
+  "preContext": "",
+  "threatFilterConfig": {
+    "criticPassEnabled": true,
+    "enabled": true,
+    "falsePositiveKeywords": [
+      "threat without attack path or unreachable vulnerability"
+    ],
+    "infrastructureControls": {
+      "apiGateway": {
+        "description": "Headers are stripped and re-injected by the API gateway after authentication. Cannot be set by external users or attackers.",
+        "trustedHeaders": [
+          "x-user-id",
+          "x-device-id",
+          "x-tenant-id",
+          "x-request-id",
+          "x-correlation-id",
+          "x-forwarded-for",
+          "x-real-ip",
+          "x-auth-token",
+          "x-service-name"
+        ],
+        "vendor": "API Gateway"
+      },
+      "serviceMesh": {
+        "description": "Internal service-to-service calls use mutual TLS certificates. Not accessible from the internet.",
+        "protocol": "mTLS"
+      },
+      "waf": {
+        "capabilities": [
+          "rate-limiting",
+          "ddos-protection",
+          "ip-reputation"
+        ],
+        "description": "Rate limiting and DDoS protection enforced at CDN layer, not application code.",
+        "vendor": "WAF/CDN"
+      }
+    },
+    "qualityConfig": {
+      "minScenarioLength": 60,
+      "requireAssetSpecificity": false,
+      "requireSpecificEntryPoint": true
+    },
+    "sensitiveAssets": [
+      "PII",
+      "financial records",
+      "authentication tokens",
+      "payment card data",
+      "personal identification numbers"
+    ]
+  },
+  "generalConfig": {
+    "timezone": "Asia/Kolkata"
+  }
+}

@@ -1,6 +1,10 @@
 import json
 import logging
 import os
+
+_STORAGE_DIR = os.environ.get('STORAGE_PATH', 'storage')
+import re
+import time
 from rag.rag_handler import PromptManager
 
 # Configure logging
@@ -17,7 +21,7 @@ class AttackTreeHandler:
         Get the methodology from details.json for the given assessment_id.
         Raises an error if details.json doesn't exist or doesn't contain the methodology.
         """
-        details_path = os.path.join('storage', assessment_id, 'details.json')
+        details_path = os.path.join(_STORAGE_DIR, assessment_id, 'details.json')
         if not os.path.exists(details_path):
             error_msg = f"details.json not found for assessment {assessment_id}"
             logging.error(error_msg)
@@ -57,8 +61,9 @@ class AttackTreeHandler:
             logging.error(error_msg)
             raise ValueError(error_msg)
         
-        # Get the attack tree prompt template
-        prompt_data = self.prompt_manager.get_prompt("attack_tree")
+        # Get the appropriate attack tree prompt template based on methodology
+        prompt_key = "pasta_attack_tree" if methodology == "PASTA" else "attack_tree"
+        prompt_data = self.prompt_manager.get_prompt(prompt_key)
         
         # Extract relevant information from threat model
         threats = threat_model_result.get('threat_model', [])
@@ -170,218 +175,177 @@ Use commas between all properties and array elements.
         # Join lines with newlines
         return "\n".join(mermaid_lines)
 
+    def _build_system_message(self):
+        """Build the system message for attack tree generation."""
+        base = (
+            "You are a Security Architect and expert. Create an attack tree structure in JSON format. "
+            "IMPORTANT: Your response must be ONLY valid JSON, with no additional text or explanation. "
+            "Ensure all JSON strings are properly escaped and the structure is valid. "
+            "Always use commas between properties and array elements."
+        )
+        if self.openai_handler.method == 'BEDROCK':
+            base += (
+                " Do not include markdown code blocks, explanations, "
+                "or any text outside the JSON structure."
+            )
+        return base
+
+    def _repair_json(self, text):
+        """
+        Repair common LLM JSON formatting issues.
+        Returns the repaired string (may still be invalid if severely malformed).
+        """
+        # Strip markdown code fences
+        text = text.replace("```json", "").replace("```", "").strip()
+
+        # Find the opening brace
+        json_start = text.find('{')
+        if json_start < 0:
+            return text
+        text = text[json_start:]
+
+        # Truncate to the last balanced closing brace (handles truncated responses)
+        depth = 0
+        end_pos = -1
+        for i, ch in enumerate(text):
+            if ch == '{':
+                depth += 1
+            elif ch == '}':
+                depth -= 1
+                if depth == 0:
+                    end_pos = i + 1
+                    break
+        if end_pos > 0:
+            text = text[:end_pos]
+
+        # Remove trailing commas before ] or }
+        text = re.sub(r',(\s*[}\]])', r'\1', text)
+        # Fix missing commas between adjacent string values / objects
+        text = re.sub(r'"\s*\n(\s*")', r'",\n\1', text)
+        text = re.sub(r'}\s*\n(\s*\{)', r'},\n\1', text)
+
+        return text
+
+    def _parse_tree_response(self, response_content):
+        """
+        Try to parse the LLM response as a valid attack tree dict.
+        Returns tree_data dict on success, raises json.JSONDecodeError on failure.
+        """
+        repaired = self._repair_json(response_content)
+        tree_data = json.loads(repaired)  # raises JSONDecodeError if still broken
+
+        # Ensure total_paths exists
+        if 'total_paths' not in tree_data:
+            def count_paths(node):
+                if not node.get('children'):
+                    return 1
+                return sum(count_paths(c) for c in node['children'])
+
+            tree_data['total_paths'] = sum(
+                count_paths(n) for n in tree_data.get('nodes', [])
+            )
+        return tree_data
+
+    @staticmethod
+    def _default_children():
+        return [{
+            "id": "attack1",
+            "type": "attack",
+            "label": "Spoofing Threats",
+            "children": [{"id": "vuln1", "type": "vulnerability", "label": "Authentication vulnerabilities"}]
+        }]
+
+    @staticmethod
+    def _extract_attack_nodes(type_matches, label_matches):
+        """Return deduplicated attack nodes extracted from regex matches."""
+        seen = set()
+        nodes = []
+        for i, type_val in enumerate(type_matches):
+            if type_val != "attack" or i >= len(label_matches):
+                continue
+            label = label_matches[i]
+            key = (label.split()[0] if label.split() else "Unknown")
+            if key not in seen:
+                seen.add(key)
+                nodes.append({"id": f"attack{len(seen)}", "type": "attack",
+                               "label": label, "children": []})
+        return nodes
+
+    def _build_fallback_tree(self, response_content):
+        """
+        Build a minimal tree by extracting node data from a malformed response.
+        Falls back to a hardcoded default if extraction yields nothing.
+        """
+        type_matches = re.findall(r'"type"\s*:\s*"([^"]+)"', response_content)
+        label_matches = re.findall(r'"label"\s*:\s*"([^"]+)"', response_content)
+
+        children = self._extract_attack_nodes(type_matches, label_matches)
+        if children:
+            logging.warning("Constructing minimal tree from extracted properties")
+        else:
+            logging.warning("No nodes extracted, using hardcoded fallback tree")
+            children = self._default_children()
+
+        root_node = {"id": "root", "type": "goal", "label": "Security Threats", "children": children}
+        return {"nodes": [root_node]}
+
+    def _finalize_tree(self, tree_data):
+        """Validate, fix and convert a parsed tree to the final result dict."""
+        if "nodes" not in tree_data:
+            tree_data["nodes"] = []
+        if not self.validate_tree_structure(tree_data):
+            logging.warning("Tree structure invalid after parse, fixing…")
+            tree_data = self.fix_tree_structure(tree_data)
+        return {
+            "attack_tree": tree_data,
+            "markdown": self.convert_tree_to_mermaid(tree_data),
+            "total_paths": tree_data.get('total_paths', 0)
+        }
+
+    def _call_llm(self, params):
+        """Make one LLM call and return the stripped response text."""
+        response = self.client.chat.completions.create(**params)
+        if hasattr(response, 'usage') and response.usage:
+            prev = getattr(self, '_last_usage', (0, 0)) or (0, 0)
+            self._last_usage = (prev[0] + response.usage.prompt_tokens, prev[1] + response.usage.completion_tokens)
+        return response.choices[0].message.content.strip()
+
     def get_attack_tree(self, prompt):
         """
-        Get attack tree from LLM with improved error handling and JSON parsing.
+        Get attack tree from LLM with retry logic, JSON repair, and graceful fallback.
         """
         method = self.openai_handler.method
         logging.info(f"Generating attack tree using {method}")
-        
-        try:
-            # Add explicit JSON formatting instructions to the system message
-            system_message = """You are a Security Architect and expert. Create an attack tree structure in JSON format.
-            IMPORTANT: Your response must be ONLY valid JSON, with no additional text or explanation.
-            Ensure all JSON strings are properly escaped and the structure is valid.
-            Always use commas between properties and array elements."""
-            
-            # Add stronger JSON instructions for Bedrock
-            if method == 'BEDROCK':
-                system_message = """You are a Security Architect and expert. Create an attack tree structure in JSON format.
-                IMPORTANT: Your response must be ONLY valid JSON, with no additional text or explanation.
-                Do not include markdown code blocks, explanations, or any text outside the JSON structure.
-                Ensure all JSON strings are properly escaped and the structure is valid.
-                Always use commas between properties and array elements."""
 
-            # Prepare common parameters
-            params = {
-                "model": self.openai_handler.model,
-                "messages": [
-                    {"role": "system", "content": system_message},
-                    {"role": "user", "content": prompt}
-                ],
-                "temperature": 0.5,  # Lower temperature for more consistent output
-                "max_tokens": 8000
-            }
-            
-            # Add provider-specific parameters
-            if method == 'OPENAI':
-                params["response_format"] = {"type": "json_object"}  # Enforce JSON response
-                logging.info("Using OpenAI-specific parameters")
-            elif method == 'BEDROCK':
-                # Bedrock might not support response_format, so we don't add it
-                logging.info("Using Bedrock-compatible parameters")
-            
-            # Make the API call
-            logging.info(f"Sending request to {method} with model {self.openai_handler.model}")
-            response = self.client.chat.completions.create(**params)
-            
-            response_content = response.choices[0].message.content.strip()
-            
-            # Additional JSON validation and cleaning
+        params = {
+            "model": self.openai_handler.large_output_model,
+            "messages": [
+                {"role": "system", "content": self._build_system_message()},
+                {"role": "user", "content": prompt}
+            ],
+            "temperature": 0.3,
+            "max_tokens": 16000
+        }
+        if method == 'OPENAI':
+            params["response_format"] = {"type": "json_object"}
+
+        response_content = None
+        last_error = None
+        for attempt in range(1, 4):
             try:
-                # Try to parse the JSON response
-                # First, try to fix common JSON formatting issues
-                fixed_content = response_content
-                
-                try:
-                    # Try parsing as-is first
-                    tree_data = json.loads(fixed_content)
-                    
-                    # Ensure total_paths exists, calculate if not provided
-                    if 'total_paths' not in tree_data:
-                        # Calculate total paths by counting unique paths from root to leaf nodes
-                        def count_paths(node):
-                            if not node.get('children'):
-                                return 1
-                            total = 0
-                            for child in node.get('children', []):
-                                total += count_paths(child)
-                            return total
-                        
-                        total_paths = 0
-                        for root_node in tree_data.get('nodes', []):
-                            total_paths += count_paths(root_node)
-                        tree_data['total_paths'] = total_paths
-                except json.JSONDecodeError:
-                    # If parsing fails, try fixing the JSON
-                    logging.warning("Initial JSON parsing failed, attempting fixes")
-                    
-                    # Fix missing commas between properties
-                    import re
-                    
-                    # Fix missing commas between properties at the same level
-                    fixed_content = re.sub(r'"\s*\n\s*"', '",\n"', fixed_content)
-                    fixed_content = re.sub(r'}\s*\n\s*{', '},\n{', fixed_content)
-                    
-                    # Fix missing commas between object properties
-                    fixed_content = re.sub(r'"([^"]+)"\s*:\s*("[^"]+"|\{[^}]+\}|\[[^\]]+\]|\w+)\s*\n\s*"', 
-                                         r'"\1": \2,\n"', fixed_content)
-                    
-                    # Fix missing commas in arrays
-                    fixed_content = re.sub(r'\}\s*\n\s*\{', '}, {', fixed_content)
-                    fixed_content = re.sub(r'\]\s*\n\s*\[', '], [', fixed_content)
-                    
-                    # Fix missing commas between properties in nested objects
-                    fixed_content = re.sub(r'(\s*"[^"]+"\s*:\s*(?:"[^"]*"|{[^}]*}|\[[^\]]*\]|\w+))\s*\n\s*(?=")', r'\1,\n', fixed_content)
-                    
-                    # More aggressive fix - replace all newlines between properties with commas
-                    fixed_content = re.sub(r'"([^"]+)"\s*:\s*([^,\n]+)\s*\n\s*"', r'"\1": \2,\n"', fixed_content)
-                    
-                    # Last resort - manually construct valid JSON
-                    if '"id":' in fixed_content and '"type":' in fixed_content:
-                        try:
-                            # Try to extract all properties and rebuild the JSON
-                            id_matches = re.findall(r'"id"\s*:\s*"([^"]+)"', fixed_content)
-                            type_matches = re.findall(r'"type"\s*:\s*"([^"]+)"', fixed_content)
-                            label_matches = re.findall(r'"label"\s*:\s*"([^"]+)"', fixed_content)
-                            
-                            # If we have enough data, construct a minimal valid tree
-                            if len(id_matches) > 0 and len(type_matches) > 0 and len(label_matches) > 0:
-                                logging.warning("Constructing minimal valid tree from extracted properties")
-                                
-                                # Create a root node
-                                root_node = {
-                                    "id": "root",
-                                    "type": "goal",
-                                    "label": "Security Threats",
-                                    "children": []
-                                }
-                                
-                                # Add attack nodes for each threat type
-                                threat_types = set()
-                                for i, type_val in enumerate(type_matches):
-                                    if type_val == "attack" and i < len(label_matches):
-                                        threat_type = label_matches[i].split()[0] if len(label_matches[i].split()) > 0 else "Unknown"
-                                        if threat_type not in threat_types:
-                                            threat_types.add(threat_type)
-                                            attack_node = {
-                                                "id": f"attack{len(threat_types)}",
-                                                "type": "attack",
-                                                "label": label_matches[i],
-                                                "children": []
-                                            }
-                                            root_node["children"].append(attack_node)
-                                
-                                tree_data = {"nodes": [root_node]}
-                                return {
-                                    "attack_tree": tree_data,
-                                    "markdown": self.convert_tree_to_mermaid(tree_data)
-                                }
-                        except Exception as e:
-                            logging.error(f"Failed to construct minimal valid tree: {str(e)}")
-                    
-                    try:
-                        tree_data = json.loads(fixed_content)
-                    except json.JSONDecodeError as e:
-                        logging.error(f"JSON parsing still failed after fixes: {str(e)}")
-                        logging.error(f"Fixed content: {fixed_content[:200]}...")
-                        
-                        # Create a default tree structure
-                        tree_data = {
-                            "nodes": [
-                                {
-                                    "id": "root",
-                                    "type": "goal",
-                                    "label": "Security Threats",
-                                    "children": [
-                                        {
-                                            "id": "attack1",
-                                            "type": "attack",
-                                            "label": "Spoofing Threats",
-                                            "children": [
-                                                {
-                                                    "id": "vuln1",
-                                                    "type": "vulnerability",
-                                                    "label": "Authentication vulnerabilities"
-                                                }
-                                            ]
-                                        }
-                                    ]
-                                }
-                            ]
-                        }
-                
-                # Ensure the basic structure exists
-                if "nodes" not in tree_data:
-                    tree_data = {"nodes": []}
-                
-                # Validate and fix the tree structure
-                if not self.validate_tree_structure(tree_data):
-                    logging.warning("Invalid tree structure received, attempting to fix...")
-                    tree_data = self.fix_tree_structure(tree_data)
-                
-                # Convert to Mermaid diagram
-                mermaid_diagram = self.convert_tree_to_mermaid(tree_data)
-                
-                return {
-                    "attack_tree": tree_data,
-                    "markdown": mermaid_diagram,
-                    "total_paths": tree_data.get('total_paths', 0)
-                }
-                
-            except json.JSONDecodeError as json_err:
-                logging.error(f"JSON parsing error: {str(json_err)}")
-                logging.error(f"Response content: {response_content[:200]}...")
-                raise ValueError(f"Failed to parse OpenAI response as JSON: {str(json_err)}")
-            
-        except Exception as e:
-            logging.error(f"Error generating attack tree: {str(e)}")
-            # Return a properly formatted error response with more detail
-            error_message = str(e)
-            error_tree = {
-                "nodes": [
-                    {
-                        "id": "error",
-                        "type": "goal",
-                        "label": f"Error generating attack tree: {error_message}"
-                    }
-                ]
-            }
-            error_mermaid = f"graph TD\n    error[\"{error_message}\"]"
-            return {
-                "attack_tree": error_tree,
-                "markdown": error_mermaid
-            }
+                logging.info(f"Attack tree attempt {attempt}/3")
+                response_content = self._call_llm(params)
+                return self._finalize_tree(self._parse_tree_response(response_content))
+            except (json.JSONDecodeError, Exception) as e:
+                last_error = e
+                logging.warning(f"Attempt {attempt} failed: {e}. "
+                                 f"Snippet: {(response_content or '')[:200]}")
+                if attempt < 3:
+                    time.sleep(2 ** attempt)
+
+        logging.error(f"All 3 attack tree attempts failed. Last error: {last_error}")
+        tree_data = self._build_fallback_tree(response_content or "")
+        return self._finalize_tree(tree_data)
 
     def fix_tree_structure(self, tree_data):
         """
@@ -470,11 +434,17 @@ Use commas between all properties and array elements.
         
         # Get the attack tree data
         result = self.get_attack_tree(prompt)
+        if assessment_id and getattr(self, '_last_usage', None):
+            try:
+                from utils.storage import accumulate_pipeline_cost
+                accumulate_pipeline_cost(assessment_id, 'attack_tree', self._last_usage[0], self._last_usage[1], self.openai_handler.model)
+            except Exception:
+                pass
         
         # Check if result is a string (error message) or a dictionary
         if isinstance(result, str):
             return {
                 "markdown": f"mermaid\n{result}\n"
             }
-        
+
         return result

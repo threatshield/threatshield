@@ -1,0 +1,1291 @@
+openapi: 3.0.3
+info:
+  title: ThreatShield API
+  description: |
+    REST API for **ThreatShield** — AI-driven threat modeling and security
+    assessment platform.
+
+    ThreatShield ingests product documents (PDF, Confluence, Slack, Google Docs),
+    runs a six-stage AI pipeline (threat model → DREAD → mitigations → attack tree
+    → ASVS test cases → diagram), and exposes the results through this API.
+
+    ## Authentication
+    Most endpoints require a **Bearer token** issued by `POST /api/auth/google`.
+    Send it as `Authorization: Bearer <token>`. Tokens are valid for 7 days.
+
+    Endpoints tagged **admin** additionally require the caller's email to be present
+    in `settings.json → admins`.
+
+    ## Lifecycle
+    Assessment status: `pending → queued → processing → completed`
+    (or `failed` / `cancelled`).
+  version: 1.0.0
+  license:
+    name: MIT
+    url: https://github.com/threatshield/threatshield
+
+servers:
+  - url: /
+    description: Same-origin (frontend proxies /api to the Flask backend)
+  - url: http://localhost:5001
+    description: Local Flask backend
+
+tags:
+  - name: Auth
+    description: Google OAuth login and session
+  - name: Assessments
+    description: Create assessments and upload source documents
+  - name: Analysis
+    description: Threat model, DREAD, mitigations, attack tree, ASVS, diagrams
+  - name: Queue
+    description: Async assessment queue management
+  - name: Reports
+    description: Downloadable JSON / PDF reports and TM-BOM
+  - name: Analytics
+    description: Risk metrics and analytics dashboards
+  - name: AI-DAST
+    description: AI-assisted dynamic application security testing
+  - name: Settings
+    description: Pre-context and connection settings
+  - name: Admin
+    description: Admin-only configuration (LLM, admins, filters, logs, retrigger)
+  - name: MCP
+    description: MCP server registration and testing
+  - name: Teams
+    description: Teams / departments
+  - name: Feedback
+    description: User feedback collection
+  - name: Custom Threat Models
+    description: User-defined groupings of assessments
+  - name: System
+    description: Health and connection checks
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+    Success:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+    AssessmentDetails:
+      type: object
+      properties:
+        assessment_id:
+          type: string
+        name:
+          type: string
+        department:
+          type: string
+        status:
+          type: string
+          enum: [pending, queued, processing, completed, failed, cancelled]
+        source:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+  parameters:
+    AssessmentId:
+      name: assessment_id
+      in: query
+      required: true
+      schema:
+        type: string
+      description: Assessment identifier
+
+security:
+  - bearerAuth: []
+
+paths:
+  /status/health:
+    get:
+      tags: [System]
+      summary: Health check
+      security: []
+      responses:
+        '200':
+          description: Service is healthy
+
+  /api/auth/google:
+    post:
+      tags: [Auth]
+      summary: Log in with a Google ID token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token:
+                  type: string
+                  description: Google ID token (credential) from Google Sign-In
+      responses:
+        '200':
+          description: Signed Bearer token (7-day expiry) and user profile
+        '401':
+          description: Invalid Google token
+
+  /api/auth/user:
+    get:
+      tags: [Auth]
+      summary: Get the currently authenticated user
+      responses:
+        '200':
+          description: Current user profile
+        '401':
+          description: Missing or invalid token
+
+  /api/auth/logout:
+    post:
+      tags: [Auth]
+      summary: Log out (client discards the token)
+      security: []
+      responses:
+        '200':
+          description: Logged out
+
+  /api/upload:
+    post:
+      tags: [Assessments]
+      summary: Upload documents and process an assessment (blocking)
+      description: >
+        Accepts a PDF file upload and/or pre-fetched document objects.
+        Triggers the full analysis pipeline inline.
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: PDF document
+                name:
+                  type: string
+                department:
+                  type: string
+                description:
+                  type: string
+                app_type:
+                  type: string
+                internet_facing:
+                  type: string
+                sensitive_data:
+                  type: string
+                sensitivity_level:
+                  type: string
+                confluence_url:
+                  type: string
+                additional_info:
+                  type: string
+                custom_prompt:
+                  type: string
+                assessment_id:
+                  type: string
+      responses:
+        '200':
+          description: Assessment processed
+
+  /api/store-details:
+    post:
+      tags: [Assessments]
+      summary: Store assessment metadata
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [assessment_id, details]
+              properties:
+                assessment_id:
+                  type: string
+                details:
+                  type: object
+      responses:
+        '200':
+          description: Details stored
+
+  /api/details:
+    get:
+      tags: [Assessments]
+      summary: Get assessment metadata
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/AssessmentId'
+      responses:
+        '200':
+          description: Assessment details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssessmentDetails'
+
+  /api/assessment-files/{assessment_id}:
+    get:
+      tags: [Assessments]
+      summary: List stored files for an assessment
+      security: []
+      parameters:
+        - name: assessment_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of files
+
+  /api/download-assessment-file/{assessment_id}/{filename}:
+    get:
+      tags: [Assessments]
+      summary: Download a single assessment file
+      security: []
+      parameters:
+        - name: assessment_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: filename
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: File contents
+
+  /api/storage:
+    get:
+      tags: [Assessments]
+      summary: Access stored assessment data
+      security: []
+      parameters:
+        - name: assessment_id
+          in: query
+          schema:
+            type: string
+        - name: assessment_name
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Stored data
+
+  /api/query-ai:
+    post:
+      tags: [Analysis]
+      summary: Conversational Q&A over an assessment
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [assessment_id, user_query]
+              properties:
+                assessment_id:
+                  type: string
+                user_query:
+                  type: string
+      responses:
+        '200':
+          description: AI answer
+
+  /api/threat-model:
+    get:
+      tags: [Analysis]
+      summary: Get / generate the STRIDE threat model
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/AssessmentId'
+      responses:
+        '200':
+          description: Threat model JSON
+
+  /api/threat-model/status:
+    post:
+      tags: [Analysis]
+      summary: Get threat-model generation status
+      security: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                assessment_id:
+                  type: string
+                secreview_id:
+                  type: string
+      responses:
+        '200':
+          description: Status payload
+
+  /api/threat-model/{assessment_id}:
+    delete:
+      tags: [Analysis]
+      summary: Delete a threat model
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: assessment_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Deleted (admin only)
+
+  /api/dread-assessment:
+    get:
+      tags: [Analysis]
+      summary: Get / generate the DREAD assessment
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/AssessmentId'
+      responses:
+        '200':
+          description: DREAD assessment JSON
+
+  /api/mitigations:
+    get:
+      tags: [Analysis]
+      summary: Get / generate mitigations
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/AssessmentId'
+      responses:
+        '200':
+          description: Mitigation suggestions
+
+  /api/attack-tree:
+    get:
+      tags: [Analysis]
+      summary: Get / generate the attack tree
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/AssessmentId'
+      responses:
+        '200':
+          description: Attack tree JSON
+
+  /api/asvs-test-cases:
+    get:
+      tags: [Analysis]
+      summary: Get / generate ASVS security test cases
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/AssessmentId'
+      responses:
+        '200':
+          description: ASVS test cases
+
+  /api/update-asvs-test-cases:
+    put:
+      tags: [Analysis]
+      summary: Update validation state of an ASVS test case
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/AssessmentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                threat:
+                  type: string
+                scenario:
+                  type: string
+                validated:
+                  type: boolean
+      responses:
+        '200':
+          description: Updated
+
+  /api/generate-diagrams:
+    get:
+      tags: [Analysis]
+      summary: Generate architecture diagram (Mermaid)
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/AssessmentId'
+      responses:
+        '200':
+          description: Diagram source
+
+  /api/consolidated-diagram/generate:
+    post:
+      tags: [Analysis]
+      summary: Generate a consolidated diagram across assessments
+      security: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                group_id:
+                  type: string
+                assessment_ids:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: Generation started
+
+  /api/consolidated-diagram/status:
+    get:
+      tags: [Analysis]
+      summary: Consolidated diagram status
+      security: []
+      parameters:
+        - name: group_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Status
+
+  /api/queue:
+    get:
+      tags: [Queue]
+      summary: List queue items
+      security: []
+      responses:
+        '200':
+          description: Queue items
+    post:
+      tags: [Queue]
+      summary: Create an assessment and enqueue it (async)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                projectName:
+                  type: string
+                service_name:
+                  type: string
+                department:
+                  type: string
+                description:
+                  type: string
+                documentSource:
+                  type: string
+                  enum: [confluence, slack, gdoc, pdf]
+                prd_url:
+                  type: string
+                slackThread:
+                  type: string
+                applicationType:
+                  type: string
+                internet_facing:
+                  type: boolean
+                sensitive_data:
+                  type: boolean
+                dataSensitivityLevel:
+                  type: string
+                authentication:
+                  type: array
+                  items:
+                    type: string
+                threatModelingMethodology:
+                  type: string
+                  enum: [STRIDE, PASTA]
+                custom_prompt:
+                  type: string
+                initiated_by:
+                  type: string
+      responses:
+        '200':
+          description: Queued
+
+  /api/queue/{secreview_id}:
+    get:
+      tags: [Queue]
+      summary: Get a queue item
+      security: []
+      parameters:
+        - name: secreview_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Queue item
+    delete:
+      tags: [Queue]
+      summary: Delete a queue item
+      security: []
+      parameters:
+        - name: secreview_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Deleted
+
+  /api/queue/{secreview_id}/status:
+    put:
+      tags: [Queue]
+      summary: Update queue item status
+      security: []
+      parameters:
+        - name: secreview_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                threat_model_status:
+                  type: string
+                error_message:
+                  type: string
+      responses:
+        '200':
+          description: Updated
+
+  /api/cancel-assessment/{assessment_id}:
+    post:
+      tags: [Queue]
+      summary: Cancel a running/queued assessment
+      security: []
+      parameters:
+        - name: assessment_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Cancelled
+
+  /api/retry-fetch-doc/{assessment_id}/{doc_type}:
+    post:
+      tags: [Queue]
+      summary: Retry fetching a source document
+      security: []
+      parameters:
+        - name: assessment_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: doc_type
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [confluence, slack, prd]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                url:
+                  type: string
+                confluence_doc:
+                  type: string
+                slack_thread:
+                  type: string
+                prd_url:
+                  type: string
+      responses:
+        '200':
+          description: Re-fetched
+
+  /api/nudge-queued:
+    post:
+      tags: [Queue]
+      summary: Re-trigger the queue worker for stuck items
+      security: []
+      responses:
+        '200':
+          description: Nudged
+
+  /api/storage-queue-items:
+    get:
+      tags: [Queue]
+      summary: List queue items reconstructed from storage
+      security: []
+      responses:
+        '200':
+          description: Queue items
+
+  /api/report/download-json:
+    get:
+      tags: [Reports]
+      summary: Download a combined JSON report
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/AssessmentId'
+      responses:
+        '200':
+          description: JSON report
+          content:
+            application/json: {}
+
+  /api/report/download-pdf:
+    get:
+      tags: [Reports]
+      summary: Download a PDF report
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/AssessmentId'
+      responses:
+        '200':
+          description: PDF report
+          content:
+            application/pdf: {}
+
+  /api/tmbom:
+    get:
+      tags: [Reports]
+      summary: Get the Threat-Model Bill of Materials
+      parameters:
+        - $ref: '#/components/parameters/AssessmentId'
+      responses:
+        '200':
+          description: TM-BOM JSON
+
+  /api/tmbom/generate:
+    post:
+      tags: [Reports]
+      summary: Generate the TM-BOM
+      parameters:
+        - $ref: '#/components/parameters/AssessmentId'
+      responses:
+        '200':
+          description: Generated
+
+  /api/tmbom/download:
+    get:
+      tags: [Reports]
+      summary: Download the TM-BOM file
+      parameters:
+        - $ref: '#/components/parameters/AssessmentId'
+      responses:
+        '200':
+          description: TM-BOM file
+
+  /api/analytics-data:
+    get:
+      tags: [Analytics]
+      summary: Aggregated analytics data
+      security: []
+      responses:
+        '200':
+          description: Analytics payload
+
+  /api/metrics:
+    get:
+      tags: [Analytics]
+      summary: Risk / cost metrics over a period
+      security: []
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Metrics payload
+
+  /api/department-additional-info:
+    get:
+      tags: [Analytics]
+      summary: Additional info aggregated by department
+      security: []
+      parameters:
+        - name: department
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Department info
+
+  /api/department-secbugs:
+    get:
+      tags: [Analytics]
+      summary: Security bugs aggregated by department
+      security: []
+      parameters:
+        - name: department
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Security bugs
+
+  /api/ai-dast/start:
+    post:
+      tags: [AI-DAST]
+      summary: Start an AI-DAST run
+      parameters:
+        - $ref: '#/components/parameters/AssessmentId'
+      responses:
+        '200':
+          description: Started
+
+  /api/ai-dast/status:
+    get:
+      tags: [AI-DAST]
+      summary: AI-DAST run status
+      parameters:
+        - $ref: '#/components/parameters/AssessmentId'
+      responses:
+        '200':
+          description: Status
+
+  /api/ai-dast/submit:
+    post:
+      tags: [AI-DAST]
+      summary: Submit AI-DAST validation results
+      parameters:
+        - $ref: '#/components/parameters/AssessmentId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                validations:
+                  type: array
+                  items:
+                    type: object
+      responses:
+        '200':
+          description: Submitted
+
+  /api/settings:
+    get:
+      tags: [Settings]
+      summary: Get application settings (pre-context, dark mode, etc.)
+      security: []
+      responses:
+        '200':
+          description: Settings object
+    post:
+      tags: [Settings]
+      summary: Save application settings
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Saved (admin only)
+
+  /api/validate-connections:
+    post:
+      tags: [System]
+      summary: Validate Confluence / Slack URLs
+      security: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                confluence_url:
+                  type: string
+                slack_url:
+                  type: string
+      responses:
+        '200':
+          description: Validation result
+
+  /api/connections:
+    get:
+      tags: [System]
+      summary: Check all configured integrations
+      security: []
+      responses:
+        '200':
+          description: Connection statuses
+
+  /api/model-status:
+    get:
+      tags: [System]
+      summary: Whether the LLM is configured and tested
+      security: []
+      responses:
+        '200':
+          description: Model status
+
+  /api/setup/bootstrap-admin:
+    post:
+      tags: [Admin]
+      summary: Bootstrap the first admin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        '200':
+          description: Admin added
+
+  /api/admin/llm-config:
+    get:
+      tags: [Admin]
+      summary: Get LLM configuration
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: LLM config (no API keys)
+    post:
+      tags: [Admin]
+      summary: Save LLM configuration
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                method:
+                  type: string
+                  enum: [BEDROCK, OPENAI]
+                base_url:
+                  type: string
+                model:
+                  type: string
+                large_output_model:
+                  type: string
+                tested:
+                  type: boolean
+      responses:
+        '200':
+          description: Saved
+
+  /api/admin/test-llm:
+    post:
+      tags: [Admin]
+      summary: Test the LLM connection
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                llmConfig:
+                  type: object
+      responses:
+        '200':
+          description: Test result (sets tested flag on success)
+
+  /api/admin/test-github:
+    get:
+      tags: [Admin]
+      summary: Test the GitHub connection
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Test result
+
+  /api/admin/admins:
+    get:
+      tags: [Admin]
+      summary: List admins
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Admin emails
+    post:
+      tags: [Admin]
+      summary: Replace the admin list
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                admins:
+                  type: array
+                  items:
+                    type: string
+                    format: email
+      responses:
+        '200':
+          description: Saved
+
+  /api/admin/threat-filter-config:
+    get:
+      tags: [Admin]
+      summary: Get the false-positive / threat filter config
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Filter config
+    post:
+      tags: [Admin]
+      summary: Save the false-positive / threat filter config
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Saved
+
+  /api/admin/retrigger/{assessment_id}:
+    post:
+      tags: [Admin]
+      summary: Re-run the pipeline for an assessment
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: assessment_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Retriggered
+
+  /api/admin/feedback:
+    get:
+      tags: [Admin]
+      summary: List all feedback submissions
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Feedback list
+
+  /api/admin/logs:
+    get:
+      tags: [Admin]
+      summary: List processing logs
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Logs
+
+  /api/admin/logs/{assessment_id}:
+    get:
+      tags: [Admin]
+      summary: Get logs for an assessment
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: assessment_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Logs
+
+  /api/mcp-servers:
+    get:
+      tags: [MCP]
+      summary: List MCP servers
+      security: []
+      responses:
+        '200':
+          description: MCP servers
+    post:
+      tags: [MCP]
+      summary: Add an MCP server
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                url:
+                  type: string
+      responses:
+        '200':
+          description: Added
+
+  /api/mcp-admin-check:
+    get:
+      tags: [MCP]
+      summary: Check whether the caller is an MCP admin
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Admin status
+
+  /api/mcp-servers/{server_id}:
+    put:
+      tags: [MCP]
+      summary: Update an MCP server
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: server_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Updated
+    delete:
+      tags: [MCP]
+      summary: Delete an MCP server
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: server_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Deleted
+
+  /api/mcp-servers/{server_id}/test:
+    post:
+      tags: [MCP]
+      summary: Test an MCP server connection
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: server_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Test result
+
+  /api/teams:
+    get:
+      tags: [Teams]
+      summary: List teams / departments
+      security: []
+      responses:
+        '200':
+          description: Teams
+    post:
+      tags: [Teams]
+      summary: Add a team
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+      responses:
+        '200':
+          description: Added
+
+  /api/teams/{name}:
+    delete:
+      tags: [Teams]
+      summary: Delete a team
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Deleted
+
+  /api/feedback:
+    get:
+      tags: [Feedback]
+      summary: List feedback for the current user
+      responses:
+        '200':
+          description: Feedback list
+
+  /api/feedback/{feedback_uuid}:
+    get:
+      tags: [Feedback]
+      summary: Get a feedback form
+      security: []
+      parameters:
+        - name: feedback_uuid
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Feedback form
+
+  /api/feedback/{feedback_uuid}/submit:
+    post:
+      tags: [Feedback]
+      summary: Submit feedback answers
+      security: []
+      parameters:
+        - name: feedback_uuid
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                answers:
+                  type: object
+      responses:
+        '200':
+          description: Submitted
+
+  /api/custom-threat-models:
+    get:
+      tags: [Custom Threat Models]
+      summary: List custom threat models
+      responses:
+        '200':
+          description: Custom models
+    post:
+      tags: [Custom Threat Models]
+      summary: Create a custom threat model
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, assessment_ids]
+              properties:
+                name:
+                  type: string
+                assessment_ids:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: Created
+
+  /api/custom-threat-models/{custom_id}:
+    get:
+      tags: [Custom Threat Models]
+      summary: Get a custom threat model
+      parameters:
+        - name: custom_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Custom model
+    delete:
+      tags: [Custom Threat Models]
+      summary: Delete a custom threat model
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: custom_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Deleted (admin only)

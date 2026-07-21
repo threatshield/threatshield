@@ -1,9 +1,10 @@
 flask
 flask-cors
+gunicorn
 langchain-ollama
 langchain
 langchain-community
-langchain-core==0.3.76
+langchain-core==0.3.81
 langchain-openai
 openai
 pypdf
@@ -18,3 +19,10 @@ pdfminer.six
 boto3
 python-dotenv
 jira
+google-api-python-client
+google-auth
+google-auth-oauthlib
+mcp[cli]
+reportlab
+httpx
+json-repair

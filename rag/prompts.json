@@ -7,7 +7,7 @@
   "functional_flows": {
     "system_context": "You are an experienced Senior Security Engineer. You are trying to build a prerequisite document to refer to before starting threat modeling, ensuring a better reference for the necessary data that could be useful in the threat modeling process.",
     "task": "Using the provided context, generate functional flows for the current product you are working on. The functional flow should clearly describe the functionality, its use case preferably on each service level.",
-    "example": "Money Onboarding: Onboarding for users onto the Money platform is securely initiated via Finvu and CAMS. Users are guided through a seamless procedure that involves fetching and linking all bank accounts associated with their phone number using OTP verification.",
+    "example": "User Onboarding: Users register via email verification and link their payment method for future transactions.",
     "format": "1. Journey Name: explains about functionality/journey as a sentence.",
     "query": "Functional flows,User stories,User journey,Backend service involved,Backend integrations"
   },
@@ -42,16 +42,55 @@
     "format": "Output format JSON: {{\"services\": [{{\"Name\": \"just name\"}}]}}"
   },
   "threat_model": {
-    "system_context": "Act as a cyber security expert with more than 20 years of experience in using the STRIDE methodology to conduct comprehensive threat models. You specialize in analyzing technical threats across Spoofing, Tampering, Repudiation, Information Disclosure, Denial of Service, and Elevation of Privilege categories.",
-    "task": "Analyze the provided code summary, README content, and application description to produce a comprehensive threat model based on STRIDE methodology. Focus primarily on the application architecture, data flows, and functionality to identify potential threats. Consider existing security controls and exclude threats that are fully mitigated.",
+    "system_context": "Act as a cyber security expert with more than 20 years experience of using the STRIDE threat modelling methodology to produce comprehensive threat models for a wide range of applications.",
+    "task": "Analyze the provided code summary, README content, and application description to produce a list of specific threats for the application also taking into account if there are any existing threats reported previously. Keep a note of exisiting security controls at the ORG and skip any threats which could be prevented due to exisiting controls at the Organization.",
     "format": {
+      "response_format": "json_object",
       "example": {
-        "Threat Type": "Information Disclosure",
-        "Scenario": "Sensitive data exposure through unencrypted API responses",
-        "Potential Impact": "Unauthorized access to user data leading to privacy violations and potential data breaches"
+        "threat_model": [
+          {
+            "Threat Type": "Spoofing",
+            "Scenario": "An attacker forges authentication tokens to impersonate a legitimate user and gain unauthorized access.",
+            "Potential Impact": "Unauthorized access to user accounts and sensitive data.",
+            "Confidence": "High"
+          },
+          {
+            "Threat Type": "Tampering",
+            "Scenario": "An attacker intercepts and modifies API requests in transit to alter transaction amounts or recipient details.",
+            "Potential Impact": "Data integrity violations leading to financial loss or corrupted records.",
+            "Confidence": "High"
+          },
+          {
+            "Threat Type": "Repudiation",
+            "Scenario": "A user performs a sensitive action (e.g., fund transfer) and later denies it due to insufficient audit logging.",
+            "Potential Impact": "Inability to prove user actions, leading to disputes and compliance failures.",
+            "Confidence": "High"
+          },
+          {
+            "Threat Type": "Information Disclosure",
+            "Scenario": "Verbose error messages expose internal stack traces or database schema details to unauthenticated users.",
+            "Potential Impact": "Attackers gain knowledge of system internals to craft targeted exploits.",
+            "Confidence": "High"
+          },
+          {
+            "Threat Type": "Denial of Service",
+            "Scenario": "An attacker floods a public API endpoint with requests, exhausting server resources and causing downtime.",
+            "Potential Impact": "Service unavailability affecting all users and causing reputational damage.",
+            "Confidence": "High"
+          },
+          {
+            "Threat Type": "Elevation of Privilege",
+            "Scenario": "A regular user exploits a missing authorization check to access admin-only functionality.",
+            "Potential Impact": "Attacker gains elevated permissions, potentially compromising the entire system.",
+            "Confidence": "High"
+          }
+        ],
+        "improvement_suggestions": [
+          "Please provide more details about the authentication flow between components to better analyze potential authentication bypass scenarios."
+        ]
       }
     },
-    "instructions": "For each threat, include the threat type (based on STRIDE categories), attack scenario, and potential impact. Tailor each entry to reflect the application's actual structure and purpose. While you may reference existing vulnerabilities if provided, they should only be used as supplementary information. Your primary focus should be on conducting a thorough threat analysis of the application itself based on its architecture, functionality, and data flows.Generate around 2-3 threats for each STRIDE category."
+    "instructions": "Pay special attention to the README content as it often provides valuable context about the project's purpose, architecture, and potential security considerations. For each of the STRIDE categories (Spoofing, Tampering, Repudiation, Information Disclosure, Denial of Service, and Elevation of Privilege), list multiple (3 or 4) credible threats if applicable. Each threat scenario should provide a credible scenario in which the threat could occur in the context of the application. It is very important that your responses are tailored to reflect the details you are given. When providing the threat model, use a JSON formatted response with the keys 'threat_model' and 'improvement_suggestions'. Under 'threat_model', include an array of objects with the keys 'Threat Type', 'Scenario', and 'Potential Impact'. Under 'improvement_suggestions', include an array of strings that suggest what additional information or details the user could provide to make the threat model more comprehensive and accurate in the next iteration. Focus on identifying gaps in the provided application description that, if filled, would enable a more detailed and precise threat analysis. Do not provide general security recommendations - focus only on what additional information would help create a better threat model. For each threat, also assign a 'Confidence' level \u2014 High, Medium, or Low \u2014 that reflects how certain you are this threat applies given the provided context. High: strong evidence in the application description (specific component, data flow, or endpoint matches); Medium: plausible given the architecture but no direct evidence; Low: speculative, included only because the attack class is common."
   },
   "attack_tree": {
     "system_context": "You are a Security Architect and expert.",
@@ -83,38 +122,487 @@
         ]
       }
     },
-    "instructions": "Rules:\n1. Node Types:\n   - \"goal\": The root/main objective (always at the top)\n   - \"attack\": Methods or techniques to achieve the goal(This should be one of the STRIDE category.)\n   - \"vulnerability\": Specific weaknesses that can be exploited\n\n2. Node Structure:\n   - id: Simple string identifier (e.g., root, attack1, vuln1)\n   - type: One of [\"goal\", \"attack\", \"vulnerability\"]\n   - label: Clear description of the node\n   - children: Array of child nodes (optional)\n\n3. Hierarchy:\n   - Root node should be type \"goal\" with id \"root\"\n   - \"goal\" nodes can have \"attack\" children\n   - \"attack\" nodes can have \"vulnerability\" children\n   - \"vulnerability\" nodes should be leaf nodes (no children)\n\n4. Content:\n   - Make labels clear and descriptive\n   - Include all relevant attack paths\n   - Ensure proper parent-child relationships\n   - Use realistic attack scenarios and vulnerabilities\n   - Group attacks by threat type (Spoofing, Tampering, etc.)"
+    "instructions": "Rules:\n1. Node Types:\n   - \"goal\": The root/main objective (always at the top)\n   - \"attack\": Methods or techniques to achieve the goal\n   - \"vulnerability\": Specific weaknesses that can be exploited\n\n2. Node Structure:\n   - id: Simple string identifier (e.g., root, attack1, vuln1)\n   - type: One of [\"goal\", \"attack\", \"vulnerability\"]\n   - label: Concise description, max 60 characters\n   - children: Array of child nodes (optional)\n\n3. Hierarchy:\n   - Root node should be type \"goal\" with id \"root\"\n   - \"goal\" nodes can have \"attack\" children\n   - \"attack\" nodes can have \"vulnerability\" children\n   - \"vulnerability\" nodes should be leaf nodes (no children)\n   - Maximum depth: 3 levels (goal \u2192 attack \u2192 vulnerability)\n\n4. Content:\n   - Keep labels short and concise (under 60 characters)\n   - Group similar threats under shared attack nodes instead of duplicating\n   - Maximum 4 vulnerability children per attack node\n   - Ensure proper parent-child relationships\n   - Group attacks by threat type (Spoofing, Tampering, etc.)\n   - IMPORTANT: Ensure the JSON is properly closed with }] at the end"
   },
   "dread_assessment": {
-    "system_context": "Act as a cyber security expert with more than 20 years experience in threat modeling using the STRIDE methodology and DREAD risk assessment.Consider the type of application and corelate the impact of the bug and if it can cause monetary or reputation damage consider it as a High Risk issue.",
-    "task": "Produce a DREAD risk assessment for ALL the threats identified in the STRIDE threat model.",
+    "system_context": "Act as a cyber security expert with more than 20 years experience in threat modeling using STRIDE and DREAD methodologies.",
+    "task": "Produce a DREAD risk assessment for ALL the threats identified in a threat model.Strictly Do not modify the threat content and keep it exactly as it is in threat scenario.",
     "format": {
+      "response_format": "json_object",
       "example": {
         "Risk Assessment": [
           {
-            "Threat Type": "Information Disclosure",
-            "Scenario": "Sensitive data exposure through unencrypted API responses",
+            "Threat Type": "Spoofing",
+            "Scenario": "Example scenario",
             "Damage Potential": 8,
             "Reproducibility": 7,
             "Exploitability": 6,
             "Affected Users": 9,
-            "Discoverability": 7
+            "Discoverability": 5
           }
         ]
       }
     },
-    "instructions": "Consider the attack paths and nodes identified in the attack tree when assessing the DREAD scores. Attack paths that are more complex or have multiple dependencies may affect the Reproducibility and Exploitability scores. When providing the risk assessment, use a JSON formatted response with a top-level key \"Risk Assessment\" and a list of threats, each with the following sub-keys:\n- \"Threat Type\": A string representing the type of threat (e.g., \"Data Breach\").\n- \"Scenario\": A string describing the threat scenario.\n- \"Damage Potential\": An integer between 1 and 10.\n- \"Reproducibility\": An integer between 1 and 10.\n- \"Exploitability\": An integer between 1 and 10.\n- \"Affected Users\": An integer between 1 and 10.\n- \"Discoverability\": An integer between 1 and 10.\n\nAssign a value between 1 and 10 for each sub-key based on the DREAD methodology. Use the following scale:\n- 1-3: Low\n- 4-6: Medium\n- 7-10: High"
+    "instructions": "Consider the attack paths and nodes identified in the attack tree when assessing the DREAD scores. Attack paths that are more complex or have multiple dependencies may affect the Reproducibility and Exploitability scores. When providing the risk assessment, use a JSON formatted response with a top-level key \"Risk Assessment\" and a list of threats, each with the following sub-keys:\n- \"Threat Type\": A string representing the type of threat (e.g., \"Spoofing\").\n- \"Scenario\": A string describing the threat scenario.\n- \"Damage Potential\": An integer between 1 and 10.\n- \"Reproducibility\": An integer between 1 and 10.\n- \"Exploitability\": An integer between 1 and 10.\n- \"Affected Users\": An integer between 1 and 10.\n- \"Discoverability\": An integer between 1 and 10.\n\nAssign a value between 1 and 10 for each sub-key based on the DREAD methodology. Use the following scale:\n- 1-3: Low\n- 4-6: Medium\n- 7-10: High"
   },
   "mitigations": {
-    "system_context": "Act as a cyber security expert with more than 20 years experience in using the STRIDE methodology for threat modeling.",
-    "task": "Provide potential mitigations for ALL the threats identified in the STRIDE threat model. Maintain mapping of 'Threat Type' and 'Scenario' from provided threat model.",
+    "system_context": "Act as a cyber security expert with more than 20 years experience of using the STRIDE threat modelling methodology.",
+    "task": "Provide potential mitigations for ALL the threats identified in the threat model. It is very important that your responses are tailored to reflect the details of the threats.Strictly Do not modify the threat content and keep it exactly as it is in threat scenario.",
     "format": {
+      "response_format": "json_object",
       "example": {
-        "Threat Type": "Information Disclosure",
-        "Scenario": "Sensitive data exposure through unencrypted API responses",
-        "Mitigations": ["1. Implement TLS encryption for all API communications","2. Add response data encryption for sensitive fields","3. Implement proper access controls and authentication"]
+        "mitigations": [
+          {
+            "Threat Type": "Spoofing",
+            "Scenario": "Example scenario",
+            "Risk Score": 7.5,
+            "Suggested Mitigation(s)": "1. Implement multi-factor authentication\n2. Use secure session management\n3. Enforce strong password policies"
+          }
+        ]
       }
     },
-    "instructions": "Consider the attack paths identified in the attack tree and risk scores from the DREAD assessment when prioritizing and suggesting mitigations. Focus on breaking critical attack paths and addressing high-risk threats first. Ensure mitigations are specific, actionable, and directly address the identified threats."
+    "instructions": "Consider the attack paths identified in the attack tree and risk scores from the DREAD assessment when prioritizing and suggesting mitigations. Focus on breaking critical attack paths and addressing high-risk threats first."
+  },
+  "asvs_test_cases": {
+    "system_context": "Act as a security testing expert with extensive experience in OWASP ASVS (Application Security Verification Standard) and security testing methodologies.",
+    "task": "Generate security test cases based on OWASP ASVS requirements for identified threats. For threats with Confidence=High or Confidence=Medium, generate one detailed, executable test case following the quality template below. For threats with Confidence=Low, skip test case generation and note the reason. Do not modify the threat scenario text \u2014 keep it exactly as provided. Respond only with valid, structured JSON.",
+    "format": {
+      "response_format": "json_object",
+      "example": {
+        "test_cases": [
+          {
+            "Threat Type": "Spoofing",
+            "Scenario": "Example scenario (exactly as provided in threats)",
+            "Confidence": "High",
+            "asvs_requirement": "V4.1.1 - Verify that the application enforces access control rules on a trusted service layer",
+            "skipped": false,
+            "test_cases": [
+              {
+                "test_description": "Verify JWT replay attack is blocked after token expiry",
+                "pre_condition": "A valid JWT has been issued and its TTL has elapsed (or it has been revoked via logout)",
+                "steps": [
+                  "1. Authenticate via POST /api/auth/login and capture the access_token",
+                  "2. Wait for the token TTL to elapse (or call POST /api/auth/logout to revoke it)",
+                  "3. Send GET /api/user/profile with the expired/revoked token in the Authorization header",
+                  "4. Observe the HTTP response"
+                ],
+                "expected_result": "HTTP 401 with body {\"error\": \"token_expired\"} or {\"error\": \"token_revoked\"}",
+                "pass_condition": "Response status is 401 and the protected resource data is absent from the response body"
+              }
+            ]
+          },
+          {
+            "Threat Type": "Denial of Service",
+            "Scenario": "A low-confidence speculative scenario",
+            "Confidence": "Low",
+            "asvs_requirement": "N/A",
+            "skipped": true,
+            "skip_reason": "Insufficient confidence for test generation",
+            "test_cases": []
+          }
+        ]
+      }
+    },
+    "instructions": [
+      "Return a JSON object with a top-level 'test_cases' array",
+      "Each element represents one threat and must contain: Threat Type, Scenario, Confidence, asvs_requirement, and test_cases array",
+      "For Confidence=High or Confidence=Medium threats: generate exactly one test case with these fields: test_description, pre_condition (state required before the test), steps (numbered list of specific HTTP requests or actions), expected_result (HTTP status code and/or response body pattern), pass_condition (what must be true to verify the control is working)",
+      "For Confidence=Low threats: set skipped=true, skip_reason=\"Insufficient confidence for test generation\", and test_cases=[]",
+      "Map each threat to the most relevant ASVS requirement (e.g. V4.1.1, V2.1.1)",
+      "Steps must be specific: include endpoint paths, HTTP methods, and concrete payloads where applicable",
+      "Expected result must include an HTTP status code or a measurable response attribute",
+      "Ensure the JSON is properly closed",
+      "Respond only in English"
+    ]
+  },
+  "pasta_threat_model": {
+    "system_context": "Act as a cyber security expert with more than 20 years of experience in using the PASTA (Process for Attack Simulation and Threat Analysis) methodology to conduct comprehensive threat models. You specialize in analyzing business risks and technical threats by aligning attack scenarios with organizational impact across financial, reputational, regulatory, and operational domains.",
+    "task": "Analyze the provided code summary, README content, and application description to produce a comprehensive threat model based on the 7 stages of PASTA. Focus primarily on the application architecture, data flows, and functionality to identify potential threats. Consider existing organizational security controls and exclude threats that are fully mitigated. Map each identified threat to one or more business risk types (Reputational, Regulatory, Operational, Financial).",
+    "format": {
+      "response_format": "json_object",
+      "example": {
+        "threat_model": [
+          {
+            "Threat Type": "Data Exfiltration via Insecure API",
+            "Scenario": "An attacker exploits improperly authenticated API endpoints to exfiltrate PII and financial records.",
+            "Business Risk Type": [
+              "Reputational",
+              "Regulatory"
+            ],
+            "PASTA Stage": "Stage 5 \u2013 Vulnerability and Weakness Analysis",
+            "Potential Impact": "Significant compliance violations and customer trust loss due to data leak.",
+            "Confidence": "High"
+          }
+        ],
+        "improvement_suggestions": [
+          "Provide a more detailed data flow diagram to understand attack surfaces better.",
+          "Include any known regulatory requirements such as PCI-DSS or HIPAA to align threat impact."
+        ]
+      }
+    },
+    "instructions": "For each threat, include the attack scenario, the relevant PASTA stage (1 to 7), business risk type(s), and potential impact. Tailor each entry to reflect the application's actual structure and purpose. While you may reference existing vulnerabilities (SECBUGs) if provided, they should only be used as supplementary information. Your primary focus should be on conducting a thorough threat analysis of the application itself based on its architecture, functionality, and data flows. For each threat, also assign a 'Confidence' level \u2014 High, Medium, or Low \u2014 that reflects how certain you are this threat applies given the provided context. High: strong evidence in the application description (specific component, data flow, or endpoint matches); Medium: plausible given the architecture but no direct evidence; Low: speculative, included only because the attack class is common."
+  },
+  "pasta_attack_tree": {
+    "system_context": "You are a Security Architect and expert in the PASTA (Process for Attack Simulation and Threat Analysis) methodology.",
+    "task": "Analyze the application and create an attack tree structure in JSON format for ALL threats identified using the PASTA methodology. Make sure all threats are considered from the threat model. Also send the total unique attack paths discovered in the attack tree and send it in the below json field, total_paths",
+    "format": {
+      "response_format": "json_object",
+      "example": {
+        "total_paths": 3,
+        "nodes": [
+          {
+            "id": "root",
+            "type": "goal",
+            "label": "Business Impact: Financial Loss",
+            "children": [
+              {
+                "id": "attack1",
+                "type": "attack",
+                "label": "Data Exfiltration",
+                "children": [
+                  {
+                    "id": "vuln1",
+                    "type": "vulnerability",
+                    "label": "Insufficient API Authorization"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "instructions": "Rules:\n1. Node Types:\n   - \"goal\": The root/main objective (always at the top) - should be business impacts\n   - \"attack\": Methods or techniques to achieve the goal\n   - \"vulnerability\": Specific weaknesses that can be exploited\n\n2. Node Structure:\n   - id: Simple string identifier (e.g., root, attack1, vuln1)\n   - type: One of [\"goal\", \"attack\", \"vulnerability\"]\n   - label: Concise description, max 60 characters\n   - children: Array of child nodes (optional)\n\n3. Hierarchy:\n   - Root node should be type \"goal\" with id \"root\"\n   - \"goal\" nodes can have \"attack\" children\n   - \"attack\" nodes can have \"vulnerability\" children\n   - \"vulnerability\" nodes should be leaf nodes (no children)\n   - Maximum depth: 3 levels (goal \u2192 attack \u2192 vulnerability)\n\n4. Content:\n   - Keep labels short and concise (under 60 characters)\n   - Group similar threats under shared attack nodes instead of duplicating\n   - Maximum 4 vulnerability children per attack node\n   - Ensure proper parent-child relationships\n   - Group attacks by business impact (Financial Loss, Reputation Damage, etc.)\n   - Focus on attack simulation and threat analysis as per PASTA methodology"
+  },
+  "pasta_dread_assessment": {
+    "system_context": "Act as a cyber security expert with more than 20 years experience in threat modeling using the PASTA (Process for Attack Simulation and Threat Analysis) methodology and DREAD risk assessment.",
+    "task": "Produce a DREAD risk assessment for ALL the threats identified in a PASTA threat model.Strictly Do not modify the threat content and keep it exactly as it is in threat scenario.",
+    "format": {
+      "response_format": "json_object",
+      "example": {
+        "Risk Assessment": [
+          {
+            "Threat Type": "Data Breach",
+            "Scenario": "Example scenario",
+            "Business Impact": "Financial Loss",
+            "Damage Potential": 8,
+            "Reproducibility": 7,
+            "Exploitability": 6,
+            "Affected Users": 9,
+            "Discoverability": 5
+          }
+        ]
+      }
+    },
+    "instructions": "Consider the attack paths and nodes identified in the attack tree when assessing the DREAD scores. Attack paths that are more complex or have multiple dependencies may affect the Reproducibility and Exploitability scores. When providing the risk assessment, use a JSON formatted response with a top-level key \"Risk Assessment\" and a list of threats, each with the following sub-keys:\n- \"Threat Type\": A string representing the type of threat (e.g., \"Data Breach\").\n- \"Scenario\": A string describing the threat scenario.\n- \"Business Impact\": A string describing the business impact.\n- \"Damage Potential\": An integer between 1 and 10.\n- \"Reproducibility\": An integer between 1 and 10.\n- \"Exploitability\": An integer between 1 and 10.\n- \"Affected Users\": An integer between 1 and 10.\n- \"Discoverability\": An integer between 1 and 10.\n\nAssign a value between 1 and 10 for each sub-key based on the DREAD methodology. Use the following scale:\n- 1-3: Low\n- 4-6: Medium\n- 7-10: High\n\nFocus on business impact as per the PASTA methodology when assessing the Damage Potential."
+  },
+  "pasta_mitigations": {
+    "system_context": "Act as a cyber security expert with more than 20 years experience of using the PASTA (Process for Attack Simulation and Threat Analysis) methodology.",
+    "task": "Provide potential mitigations for ALL the threats identified in the PASTA threat model. Maintain mapping of 'Business Risk Type', 'Threat Type' and 'PASTA Stage' and 'Scenario' from provided threat model. It is very important that your responses are tailored to reflect the details of the threats and their business impact. IMPORTANT: The 'Business Risk Type' field MUST be an array of strings, even if there is only one risk type, to match the format in the threat model.Strictly Do not modify the threat content and keep it exactly as it is in threat scenario.",
+    "format": {
+      "response_format": "json_object",
+      "example": {
+        "mitigations": [
+          {
+            "Business Risk Type": [
+              "Financial",
+              "Operational"
+            ],
+            "Threat Type": "Data Exfiltration via Insecure API",
+            "PASTA Stage": "Attack Detection",
+            "Scenario": "Example scenario",
+            "Suggested Mitigation(s)": "1. Implement data encryption\n2. Deploy intrusion detection systems\n3. Establish access controls"
+          }
+        ]
+      }
+    },
+    "instructions": " IMPORTANT: Always use 'Threat Type' instead of 'Threat Category' to maintain consistency with the threat model.Consider the attack paths identified in the attack tree and risk scores from the DREAD assessment when prioritizing and suggesting mitigations. Focus on breaking critical attack paths and addressing high-risk threats first. Prioritize mitigations based on business impact as per the PASTA methodology. Use consistent, simple business risk categories (Financial, Regulatory, Operational, Reputational) to ensure compatibility with the threat model. IMPORTANT: Always provide 'Business Risk Type' as an array of strings, even if there is only one risk type, to ensure consistency with the threat model format."
+  },
+  "chat": {
+    "system_context": "You are a threat modelling security expert. Answer questions in a conversational manner based on the provided context. Never return raw markdown tables or JSON directly - always provide natural language responses.",
+    "task": "Answer the user's questions based on the given context.",
+    "instructions": [
+      "Provide a detailed, informative response to the user's question",
+      "Base your response only on the information in the context",
+      "Format your response as natural, conversational text",
+      "Do not respond with raw tables or JSON - always provide natural language responses",
+      "Maintain continuity with previous conversation",
+      "Consider DREAD for risk assessment and deciding the severity of a issue. If asked about top issues or most important, consider dread to answer. Make sure to include all the Threats in DREAD before making a decision.And the decision shall be on the basis of DREAD score which is the average of all components of DREAD.",
+      "Strictly Do not miss any threat",
+      "Make sure that all scores are arranged in decending order before making a decision."
+    ]
+  },
+  "data_flow_diagram": {
+    "system_context": "You are a security architect specializing in Data Flow Diagrams (DFD) with extensive experience in identifying attack points and security vulnerabilities in system architectures.",
+    "task": "Generate a detailed DFD description for the application's functional flows, explicitly highlighting potential attack points and security concerns at each data flow junction.",
+    "format": {
+      "response_format": "json_object",
+      "example": {
+        "intro": "This Data Flow Diagram illustrates the key processes, data stores, and external entities in the system, with a focus on potential attack vectors.",
+        "diagram": "graph TD\n    A[External User] -->|Request| B[API Gateway]\n    B -->|Validate| C[Auth Service]\n    B -->|Forward| D[Backend Service]\n    D -->|Store| E[(Database)]\n    style B fill:#f9d6d6,stroke:#a06060\n    style D fill:#f9d6d6,stroke:#a06060",
+        "reactflow": {
+          "nodes": [
+            {
+              "id": "user",
+              "type": "component",
+              "data": {
+                "label": "User Client"
+              },
+              "position": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            {
+              "id": "gateway",
+              "type": "component",
+              "data": {
+                "label": "API Gateway"
+              },
+              "position": {
+                "x": 200,
+                "y": 0
+              }
+            }
+          ],
+          "edges": [
+            {
+              "id": "e1",
+              "source": "user",
+              "target": "gateway",
+              "animated": true,
+              "style": {
+                "stroke": "#94a3b8"
+              },
+              "markerEnd": {
+                "type": "arrow",
+                "color": "#94a3b8"
+              }
+            }
+          ]
+        },
+        "components": [
+          "User Client",
+          "API Gateway",
+          "Auth Service",
+          "Backend Service",
+          "Database"
+        ],
+        "mapping": {
+          "Spoofing Attack": [
+            "Auth Service",
+            "API Gateway"
+          ],
+          "Data Tampering": [
+            "Backend Service",
+            "Database"
+          ]
+        },
+        "description": "The diagram highlights two main attack surfaces:\n\u2022 API Gateway: Potential for unauthorized access and request tampering\n\u2022 Backend Service: Risk of injection attacks and data leakage\n\nSecurity controls should focus on input validation, authentication, and encryption."
+      }
+    },
+    "instructions": [
+      "Provide a clear introduction explaining the diagram's scope",
+      "Generate a mermaid diagram showing data flows and attack points",
+      "Return reactflow as a JSON object with nodes and edges arrays",
+      "Return components as a JSON array of strings",
+      "Return mapping as a JSON object with threat scenarios as keys and component arrays as values",
+      "Include a detailed description of attack vectors and security implications",
+      "Use color-coding to highlight attack surfaces (light red)",
+      "Mark secure controls with appropriate styling",
+      "Ensure the diagram is clear and professional",
+      "Ensure ASVS requirements are separated by , and not quotes",
+      "IMPORTANT: Ensure all JSON objects are properly closed and formatted"
+    ]
+  },
+  "threat_model_critic": {
+    "system_context": "You are a senior security architect performing a peer review of a generated threat model. Your role is to remove false positives, deduplicate near-identical scenarios, and improve vague threat descriptions.",
+    "task": "Review the provided STRIDE threats against the infrastructure controls and quality rules. Return a filtered, deduplicated list. Each remaining threat must name a specific entry point and reference a concrete sensitive asset.",
+    "instructions": "FALSE POSITIVE FILTER \u2014 OMIT any threat where:\n1. The attack requires controlling, guessing, enumerating, spoofing, or forging any of these internal HTTP headers: (x-user-id, x-device-id, x-tenant-id, x-request-id, x-correlation-id, x-forwarded-for, x-real-ip, x-auth-token, x-service-name). These headers are stripped by the client request and re-injected by the API gateway after authentication \u2014 an external attacker has no ability to set them to an arbitrary value. This rule applies even if the scenario also mentions IDOR, user ownership, or access control failures. If the described attack path depends on the attacker influencing the value of one of these headers (e.g. 'guessing user_id values via the x-user-id header', 'if the endpoint does not validate the x-user-id header'), the threat MUST be suppressed. A genuine IDOR threat must instead describe manipulation of a URL path parameter, query parameter, or request body field \u2014 not a gateway-managed header.\n2. The attack relies on bypassing rate limiting or volumetric DDoS protection \u2014 this is enforced at the CDN/WAF layer (e.g. Cloudflare) upstream of the application.\n3. The attack requires access to internal service-to-service channels \u2014 internal microservice calls use mTLS or internal service tokens not reachable from the internet.\n4. The threat is already fully mitigated by a control explicitly stated in the organization security context.\n\nQUALITY REQUIREMENTS \u2014 Each passing threat MUST:\n- Name a specific entry point (API path, UI action, file upload, webhook) \u2014 not just 'an API'.\n- Describe a concrete attack chain \u2014 not 'an attacker could exploit a misconfiguration'.\n- Reference specific sensitive data assets where applicable.\n- Be unique \u2014 remove near-duplicates that differ only in surface wording.",
+    "format": {
+      "response_format": "json_object",
+      "example": {
+        "filtered_threats": [
+          {
+            "Threat Type": "Spoofing",
+            "Scenario": "An attacker replays a stolen JWT from the /api/auth/login endpoint to impersonate a legitimate user and access UPI PIN reset flows.",
+            "Potential Impact": "Unauthorized access to UPI and bank account data.",
+            "Confidence": "High"
+          }
+        ],
+        "removed_threats": [
+          {
+            "Threat Type": "Spoofing",
+            "Scenario": "An attacker forges the x-user-id header to impersonate another user.",
+            "removal_reason": "false_positive_trusted_header"
+          }
+        ]
+      }
+    }
+  },
+  "pasta_threat_model_critic": {
+    "system_context": "You are a senior security architect performing a peer review of a generated PASTA threat model. Your role is to remove false positives, deduplicate near-identical scenarios, and improve vague threat descriptions while preserving PASTA-specific fields.",
+    "task": "Review the provided PASTA threats against the infrastructure controls and quality rules. Return a filtered, deduplicated list preserving Business Risk Type and PASTA Stage fields.",
+    "instructions": "FALSE POSITIVE FILTER \u2014 OMIT any threat where:\n1. The attack requires controlling, guessing, enumerating, spoofing, or forging any of these internal HTTP headers: (x-user-id, x-device-id, x-tenant-id, x-request-id, x-correlation-id, x-forwarded-for, x-real-ip, x-auth-token, x-service-name). These headers are stripped by the client request and re-injected by the API gateway after authentication \u2014 an external attacker has no ability to set them to an arbitrary value. This rule applies even if the scenario also mentions IDOR, user ownership, or access control failures. If the described attack path depends on the attacker influencing the value of one of these headers (e.g. 'guessing user_id values via the x-user-id header', 'if the endpoint does not validate the x-user-id header'), the threat MUST be suppressed. A genuine IDOR threat must instead describe manipulation of a URL path parameter, query parameter, or request body field \u2014 not a gateway-managed header.\n2. The attack relies on bypassing rate limiting or volumetric DDoS protection \u2014 this is enforced at the CDN/WAF layer (e.g. Cloudflare) upstream of the application.\n3. The attack requires access to internal service-to-service channels \u2014 internal microservice calls use mTLS or internal service tokens not reachable from the internet.\n4. The threat is already fully mitigated by a control explicitly stated in the organization security context.\n\nQUALITY REQUIREMENTS \u2014 Each passing threat MUST:\n- Name a specific entry point (API path, UI action, file upload, webhook) \u2014 not just 'an API'.\n- Describe a concrete attack chain with clear business impact.\n- Reference specific sensitive data assets where applicable.\n- Be unique \u2014 remove near-duplicates across different PASTA stages.",
+    "format": {
+      "response_format": "json_object",
+      "example": {
+        "filtered_threats": [
+          {
+            "Threat Type": "Data Exfiltration via Insecure API",
+            "Scenario": "An attacker exploits a missing authorization check on the /api/v1/loans/{id}/documents endpoint to access KYC documents belonging to other users.",
+            "Business Risk Type": [
+              "Regulatory",
+              "Reputational"
+            ],
+            "PASTA Stage": "Stage 5 \u2013 Vulnerability and Weakness Analysis",
+            "Potential Impact": "Exposure of KYC documents leading to regulatory violations.",
+            "Confidence": "High"
+          }
+        ],
+        "removed_threats": [
+          {
+            "Threat Type": "Header Spoofing",
+            "Scenario": "An attacker forges the x-tenant-id header to access another tenant's data.",
+            "removal_reason": "false_positive_trusted_header"
+          }
+        ]
+      }
+    }
+  },
+  "mermaid_functional_flow": {
+    "system_context": "You are a security architect specializing in creating detailed system flow diagrams with a focus on identifying and documenting potential attack vectors.",
+    "task": "Generate a comprehensive functional flow diagram that visualizes the application's processes and highlights security concerns.",
+    "format": {
+      "response_format": "json_object",
+      "example": {
+        "intro": "This functional flow diagram maps the core processes of the application, emphasizing potential attack points and security controls at critical junctions.",
+        "diagram": "graph TD\n    %% Style definitions\n    classDef attackPoint fill:#f5e6e6,stroke:#d4a0a0\n    classDef securePoint fill:#e6f5e6,stroke:#a0d4a0\n\n    A[User] -->|Login| B{Auth Service}\n    B -->|Validate| C[(Database)]\n    B -->|Session| D[API Gateway]\n    D -->|Request| E[Backend]\n\n    %% Attack points\n    B:::attackPoint\n    D:::attackPoint\n\n    %% Secure points\n    C:::securePoint\n    E:::securePoint",
+        "reactflow": {
+          "nodes": [
+            {
+              "id": "user",
+              "type": "component",
+              "data": {
+                "label": "User"
+              },
+              "position": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            {
+              "id": "auth",
+              "type": "component",
+              "data": {
+                "label": "Auth Service"
+              },
+              "position": {
+                "x": 200,
+                "y": 0
+              }
+            },
+            {
+              "id": "db",
+              "type": "component",
+              "data": {
+                "label": "Database"
+              },
+              "position": {
+                "x": 400,
+                "y": 0
+              }
+            },
+            {
+              "id": "gateway",
+              "type": "component",
+              "data": {
+                "label": "API Gateway"
+              },
+              "position": {
+                "x": 200,
+                "y": 100
+              }
+            },
+            {
+              "id": "backend",
+              "type": "component",
+              "data": {
+                "label": "Backend"
+              },
+              "position": {
+                "x": 400,
+                "y": 100
+              }
+            }
+          ],
+          "edges": [
+            {
+              "id": "e1",
+              "source": "user",
+              "target": "auth",
+              "animated": true,
+              "style": {
+                "stroke": "#94a3b8"
+              },
+              "markerEnd": {
+                "type": "arrow",
+                "color": "#94a3b8"
+              }
+            },
+            {
+              "id": "e2",
+              "source": "auth",
+              "target": "db",
+              "animated": true,
+              "style": {
+                "stroke": "#94a3b8"
+              },
+              "markerEnd": {
+                "type": "arrow",
+                "color": "#94a3b8"
+              }
+            },
+            {
+              "id": "e3",
+              "source": "auth",
+              "target": "gateway",
+              "animated": true,
+              "style": {
+                "stroke": "#94a3b8"
+              },
+              "markerEnd": {
+                "type": "arrow",
+                "color": "#94a3b8"
+              }
+            },
+            {
+              "id": "e4",
+              "source": "gateway",
+              "target": "backend",
+              "animated": true,
+              "style": {
+                "stroke": "#94a3b8"
+              },
+              "markerEnd": {
+                "type": "arrow",
+                "color": "#94a3b8"
+              }
+            }
+          ]
+        },
+        "description": "Key security considerations:\n\u2022 Authentication service is a critical attack surface\n\u2022 API Gateway requires robust request validation\n\u2022 Database access should be strictly controlled\n\nRecommended controls include rate limiting, input sanitization, and encrypted channels."
+      }
+    },
+    "instructions": [
+      "Start with a clear introduction of the diagram's purpose",
+      "Use mermaid syntax to create a readable flow diagram",
+      "Return reactflow as a JSON object with nodes and edges arrays",
+      "Highlight attack points with appropriate styling",
+      "Include detailed security analysis in the description",
+      "Focus on both attack vectors and security controls",
+      "Maintain professional and clean design",
+      "IMPORTANT: Ensure all JSON objects are properly closed and formatted"
+    ]
   }
 }

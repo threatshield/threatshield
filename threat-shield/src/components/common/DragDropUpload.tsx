@@ -82,9 +82,9 @@ const DragDropUpload: React.FC<DragDropUploadProps> = ({
     <div className={`${className}`}>
       <div
         className={`border-2 border-dashed rounded-lg p-8 transition-all duration-300 ${
-          isDragging 
-            ? 'border-[#0052cc] bg-blue-50/50 shadow-md' 
-            : 'border-blue-200 bg-white hover:border-blue-300 hover:bg-blue-50/30'
+          isDragging
+            ? 'border-[#0052cc] bg-blue-50/50 dark:bg-blue-900/20 shadow-md'
+            : 'border-blue-200 dark:border-blue-900/40 bg-white dark:bg-[#0d1e38] hover:border-blue-300 dark:hover:border-blue-700/50 hover:bg-blue-50/30 dark:hover:bg-blue-900/10'
         }`}
         onDragEnter={handleDragEnter}
         onDragOver={handleDragOver}
@@ -92,19 +92,19 @@ const DragDropUpload: React.FC<DragDropUploadProps> = ({
         onDrop={handleDrop}
       >
         <div className="flex flex-col items-center justify-center space-y-4">
-          <div className={`p-4 rounded-full ${isDragging ? 'bg-blue-100' : 'bg-blue-50'}`}>
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-[#0052cc]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <div className={`p-4 rounded-full ${isDragging ? 'bg-blue-100 dark:bg-blue-900/40' : 'bg-blue-50 dark:bg-blue-900/30'}`}>
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-[#0052cc] dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
             </svg>
           </div>
-          
+
           <div className="text-center">
-            <p className="text-lg font-medium text-gray-700">
+            <p className="text-lg font-medium text-gray-700 dark:text-slate-200">
               {isDragging ? 'Drop files here' : 'Drag & drop files here'}
             </p>
-            <p className="text-sm text-gray-500 mt-1">or</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">or</p>
           </div>
-          
+
           <button
             type="button"
             onClick={handleButtonClick}
@@ -115,7 +115,7 @@ const DragDropUpload: React.FC<DragDropUploadProps> = ({
             </svg>
             Browse Files
           </button>
-          
+
           <input
             ref={fileInputRef}
             type="file"
@@ -124,30 +124,30 @@ const DragDropUpload: React.FC<DragDropUploadProps> = ({
             multiple={multiple}
             onChange={handleFileInputChange}
           />
-          
-          <p className="text-xs text-gray-500">
+
+          <p className="text-xs text-gray-500 dark:text-slate-500">
             {multiple ? 'Upload one or more files' : 'Upload a file'}
           </p>
         </div>
       </div>
-      
+
       {/* File List */}
       {fileNames.length > 0 && (
         <div className="mt-4 space-y-2">
-          <p className="text-sm font-medium text-gray-700">Selected files:</p>
+          <p className="text-sm font-medium text-gray-700 dark:text-slate-300">Selected files:</p>
           <ul className="space-y-2">
             {fileNames.map((name, index) => (
-              <li key={index} className="flex items-center justify-between bg-blue-50/50 p-3 rounded-lg border border-blue-100">
+              <li key={index} className="flex items-center justify-between bg-blue-50/50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-100 dark:border-blue-900/40">
                 <div className="flex items-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-[#0052cc] mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-[#0052cc] dark:text-blue-400 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
-                  <span className="text-sm text-gray-700 truncate max-w-xs">{name}</span>
+                  <span className="text-sm text-gray-700 dark:text-slate-300 truncate max-w-xs">{name}</span>
                 </div>
                 <button
                   type="button"
                   onClick={() => removeFile(index)}
-                  className="text-red-500 hover:text-red-700"
+                  className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
