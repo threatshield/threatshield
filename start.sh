@@ -1,7 +1,13 @@
 #!/bin/bash
 
-# Always work from the repo root so relative paths (.env, ts/, threat-shield/) resolve
-cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1
+# Always work from the repo root so relative paths (.env, ts/, threat-shield/) resolve.
+# Uses $0 rather than $BASH_SOURCE so it also works under `sh start.sh` / `zsh start.sh`,
+# where BASH_SOURCE is unset and `cd ""` would silently leave us in the caller's directory.
+SCRIPT_DIR="$(cd "$(dirname "$0")" 2>/dev/null && pwd)"
+if [ -z "$SCRIPT_DIR" ] || ! cd "$SCRIPT_DIR"; then
+    echo "Error: could not determine the repo root from '$0'"
+    exit 1
+fi
 
 VENV_DIR="${VENV_DIR:-ts}"
 
@@ -68,11 +74,25 @@ else
 fi
 
 if [ "$(cat "$REQ_STAMP" 2>/dev/null)" != "$REQ_HASH" ]; then
-    echo "Installing Python dependencies ..."
+    echo "Installing Python dependencies (first run takes a few minutes) ..."
     pip install --upgrade pip
     pip install -r requirements.txt || { echo "Error: pip install failed"; exit 1; }
     echo "$REQ_HASH" > "$REQ_STAMP"
 fi
+
+# Sanity-check the venv really has the deps. An interrupted install or a venv
+# built by an older script leaves a stamp/dir in place, and app.py would then
+# fail with "No module named flask" long after the cause scrolled past.
+if ! python3 -c "import flask, httpx" >/dev/null 2>&1; then
+    echo "Virtual environment is incomplete — reinstalling dependencies ..."
+    pip install -r requirements.txt || { echo "Error: pip install failed"; exit 1; }
+    echo "$REQ_HASH" > "$REQ_STAMP"
+    python3 -c "import flask, httpx" 2>/dev/null || {
+        echo "Error: dependencies still missing after reinstall. Try: rm -rf $VENV_DIR && ./start.sh"
+        exit 1
+    }
+fi
+echo "Python: $(command -v python3)"
 
 # Start Flask backend
 python3 app.py &
@@ -95,10 +115,12 @@ echo "Starting React frontend..."
             # Last resort: a corrupt/stale lockfile (e.g. EINTEGRITY) would otherwise
             # leave the frontend permanently unstartable. Rebuild it from package.json.
             echo ""
-            echo "WARNING: npm ci failed. Rebuilding node_modules and package-lock.json"
-            echo "         from package.json — resolved versions may differ from the"
-            echo "         committed lockfile. Review/commit the new lockfile if it works."
-            rm -rf node_modules package-lock.json
+            echo "WARNING: npm ci failed. Moving package-lock.json aside to"
+            echo "         package-lock.json.broken and rebuilding from package.json."
+            echo "         Resolved versions may differ from the committed lockfile —"
+            echo "         diff the two, then commit the new one if it works."
+            rm -rf node_modules
+            mv package-lock.json package-lock.json.broken 2>/dev/null
             if ! npm install; then
                 echo "Error: npm install failed — React frontend not started."
                 exit 1
