@@ -162,6 +162,11 @@ const AUTH_FEATURES = [
   },
 ];
 
+// Navbar height: 16px padding top + 16px bottom + 34px tallest child (the GitHub
+// button: 8+8 padding, 1+1 border, 16px line box) + 1px bottom border. Used to size
+// the hero to exactly one viewport, so the section after it starts below the fold.
+const NAV_HEIGHT = 67;
+
 // Font stacks used by the landing design
 const DISPLAY = "'Space Grotesk', sans-serif";
 const BODY = "'IBM Plex Sans', sans-serif";
@@ -651,177 +656,193 @@ const LandingPage: React.FC = () => {
         </nav>
 
         {/* ── Hero ───────────────────────────────────────── */}
+        {/* Full-bleed so the gradient/glow/dot-grid span the whole viewport width,
+            and tall enough that nav + hero + the divider below fill exactly one
+            viewport — the next section ("the problem") starts under the fold.
+            1vh == 1 screen vh here: this wrapper's zoom: 1.25 cancels html's
+            zoom: 0.8. The extra height is background only; the content column
+            below keeps its 1180px width and is centred in the leftover space. */}
         <section
           style={{
             position: 'relative',
             zIndex: 1,
-            maxWidth: 1180,
-            margin: '0 auto',
+            minHeight: `calc(100vh - ${NAV_HEIGHT + 1}px)`, // +1px for the Divider
+            boxSizing: 'border-box',
             padding: '84px 40px 72px',
             display: 'flex',
             alignItems: 'center',
-            gap: 64,
-            flexWrap: 'wrap',
           }}
         >
-          <div style={{ flex: '1 1 440px' }}>
-            <div
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 8,
-                padding: '5px 14px',
-                borderRadius: 999,
-                border: '1px solid rgba(59,130,246,0.28)',
-                background: 'rgba(59,130,246,0.07)',
-                marginBottom: 26,
-              }}
-            >
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#3b82f6', boxShadow: '0 0 8px #3b82f6', animation: 'ts-pulse 2.4s ease-in-out infinite' }} />
-              <span style={{ fontFamily: MONO, fontSize: 10.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(147,197,253,0.85)', whiteSpace: 'nowrap' }}>
-                open source · MIT licensed
-              </span>
-            </div>
-            <h1 style={{ fontFamily: DISPLAY, fontSize: 58, fontWeight: 700, lineHeight: 1.05, letterSpacing: '-0.03em', margin: '0 0 22px' }}>
-              <span style={{ color: 'rgba(255,255,255,0.95)' }}>threat modeling,</span>
-              <br />
-              <span style={{ background: 'linear-gradient(120deg, #93c5fd 10%, #3b82f6 90%)', WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                on autopilot.
-              </span>
-            </h1>
-            <p style={{ fontSize: 16, lineHeight: 1.7, color: 'rgba(148,163,184,0.8)', margin: '0 0 34px', maxWidth: 480 }}>
-              ThreatShield uses AI to map your architecture, surface real threats, and score risk in minutes — not the weeks a manual review takes. proactive security, built into your pipeline.
-            </p>
-            <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 40 }}>
-              <button
-                onClick={handleCTA}
+          <div
+            style={{
+              width: '100%',
+              maxWidth: 1180,
+              margin: '0 auto',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 64,
+              flexWrap: 'wrap',
+            }}
+          >
+            <div style={{ flex: '1 1 440px' }}>
+              <div
                 style={{
-                  display: 'flex',
+                  display: 'inline-flex',
                   alignItems: 'center',
-                  gap: 9,
-                  padding: '14px 28px',
-                  borderRadius: 11,
-                  background: 'linear-gradient(135deg, #1d4ed8, #2563eb)',
-                  border: '1px solid rgba(96,165,250,0.3)',
-                  color: '#fff',
-                  fontSize: 14.5,
-                  fontWeight: 500,
-                  cursor: 'pointer',
-                  boxShadow: '0 0 28px rgba(59,130,246,0.3)',
-                  transition: 'box-shadow 0.2s ease',
-                }}
-                onMouseEnter={e => ((e.currentTarget as HTMLElement).style.boxShadow = '0 0 40px rgba(59,130,246,0.5)')}
-                onMouseLeave={e => ((e.currentTarget as HTMLElement).style.boxShadow = '0 0 28px rgba(59,130,246,0.3)')}
-              >
-                start a free assessment
-                <ArrowIcon />
-              </button>
-              <button
-                onClick={copyCmd}
-                title={CLONE_CMD}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 7,
-                  padding: '8px 13px',
-                  borderRadius: 9,
-                  border: '1px solid rgba(255,255,255,0.12)',
-                  background: 'rgba(255,255,255,0.03)',
-                  color: 'rgba(255,255,255,0.8)',
-                  fontSize: 11.5,
-                  fontFamily: MONO,
-                  cursor: 'pointer',
-                  alignSelf: 'center',
-                }}
-                onMouseEnter={e => {
-                  const el = e.currentTarget as HTMLElement;
-                  el.style.borderColor = 'rgba(96,165,250,0.4)';
-                  el.style.background = 'rgba(255,255,255,0.06)';
-                }}
-                onMouseLeave={e => {
-                  const el = e.currentTarget as HTMLElement;
-                  el.style.borderColor = 'rgba(255,255,255,0.12)';
-                  el.style.background = 'rgba(255,255,255,0.03)';
+                  gap: 8,
+                  padding: '5px 14px',
+                  borderRadius: 999,
+                  border: '1px solid rgba(59,130,246,0.28)',
+                  background: 'rgba(59,130,246,0.07)',
+                  marginBottom: 26,
                 }}
               >
-                <span style={{ color: 'rgba(96,165,250,0.7)' }}>$</span>
-                <span style={{ whiteSpace: 'nowrap' }}>{cmdCopied ? 'copied!' : 'git clone'}</span>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="9" y="9" width="13" height="13" rx="2" />
-                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                </svg>
-              </button>
-            </div>
-            <div style={{ display: 'flex', gap: 44 }}>
-              {HERO_STATS.map((s) => (
-                <div key={s.label}>
-                  <div style={{ fontFamily: DISPLAY, fontSize: 30, fontWeight: 700, color: '#60a5fa', lineHeight: 1 }}>
-                    {s.value}{s.suffix}
-                  </div>
-                  <div style={{ fontFamily: MONO, fontSize: 10, color: 'rgba(100,116,139,0.7)', letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 7 }}>
-                    {s.label}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Hero preview card */}
-          <div style={{ flex: '1 1 380px' }}>
-            <div style={{ position: 'relative', overflow: 'hidden', ...card }}>
-              <div style={{ position: 'absolute', top: -120, right: -90, width: 300, height: 300, borderRadius: '50%', background: 'radial-gradient(circle, rgba(99,102,241,0.18) 0%, transparent 65%)', pointerEvents: 'none' }} />
-              <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '14px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)', position: 'relative' }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#3b82f6', boxShadow: '0 0 8px #3b82f6', animation: 'ts-pulse 2.2s ease-in-out infinite' }} />
-                <span style={{ fontFamily: MONO, fontSize: 11, color: 'rgba(148,163,184,0.7)' }}>threatshield · assessment overview</span>
-                <span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 10, color: 'rgba(96,165,250,0.8)' }}>payments-api</span>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#3b82f6', boxShadow: '0 0 8px #3b82f6', animation: 'ts-pulse 2.4s ease-in-out infinite' }} />
+                <span style={{ fontFamily: MONO, fontSize: 10.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(147,197,253,0.85)', whiteSpace: 'nowrap' }}>
+                  open source · MIT licensed
+                </span>
               </div>
-              <div style={{ padding: '24px 22px', position: 'relative', zIndex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 22, marginBottom: 22 }}>
-                  <div style={{ position: 'relative', width: 122, height: 122, flexShrink: 0 }}>
-                    <svg width="122" height="122" viewBox="0 0 132 132" style={{ transform: 'rotate(-90deg)' }}>
-                      <defs>
-                        <linearGradient id="tsRing" x1="0" y1="0" x2="1" y2="1">
-                          <stop offset="0%" stopColor="#60a5fa" />
-                          <stop offset="100%" stopColor="#818cf8" />
-                        </linearGradient>
-                      </defs>
-                      <circle cx="66" cy="66" r="56" fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="11" />
-                      <circle cx="66" cy="66" r="56" fill="none" stroke="url(#tsRing)" strokeWidth="11" strokeLinecap="round" strokeDasharray="352" strokeDashoffset="92" style={{ animation: 'ts-ring 1.5s ease-out' }} />
-                    </svg>
-                    <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                      <span style={{ fontFamily: DISPLAY, fontSize: 30, fontWeight: 700, color: '#fff', lineHeight: 1 }}>7.4</span>
-                      <span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(148,163,184,0.7)', marginTop: 4 }}>avg DREAD</span>
-                    </div>
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'rgba(100,116,139,0.7)', marginBottom: 13 }}>threat distribution</div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-                      {([['critical', '88%', '#f3523c', 8], ['high', '70%', '#f99438', 7], ['medium', '48%', '#eab308', 5], ['low', '28%', '#05c74f', 3]] as [string, string, string, number][]).map(([lbl, w, c, n]) => (
-                        <div key={lbl} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <span style={{ width: 54, fontSize: 10.5, color: 'rgba(148,163,184,0.8)' }}>{lbl}</span>
-                          <div style={{ flex: 1, height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
-                            <div style={{ height: '100%', width: w, borderRadius: 3, background: c }} />
-                          </div>
-                          <span style={{ fontFamily: MONO, fontSize: 10.5, color: 'rgba(255,255,255,0.7)', width: 14, textAlign: 'right' }}>{n}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-                <div style={{ height: 1, background: 'rgba(255,255,255,0.06)', marginBottom: 16 }} />
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 16 }}>
-                  {([['94%', 'ASVS coverage'], ['41', 'test cases'], ['18', 'mitigations']] as [string, string][]).map(([v, l]) => (
-                    <div key={l} style={{ padding: '11px 12px', borderRadius: 11, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
-                      <div style={{ fontFamily: DISPLAY, fontSize: 18, fontWeight: 700, color: '#60a5fa', lineHeight: 1 }}>{v}</div>
-                      <div style={{ fontFamily: MONO, fontSize: 8, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'rgba(100,116,139,0.75)', marginTop: 6 }}>{l}</div>
-                    </div>
-                  ))}
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '11px 14px', borderRadius: 11, background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.22)' }}>
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#a5b4fc" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M20 6 9 17l-5-5" />
+              <h1 style={{ fontFamily: DISPLAY, fontSize: 58, fontWeight: 700, lineHeight: 1.05, letterSpacing: '-0.03em', margin: '0 0 22px' }}>
+                <span style={{ color: 'rgba(255,255,255,0.95)' }}>threat modeling,</span>
+                <br />
+                <span style={{ background: 'linear-gradient(120deg, #93c5fd 10%, #3b82f6 90%)', WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                  on autopilot.
+                </span>
+              </h1>
+              <p style={{ fontSize: 16, lineHeight: 1.7, color: 'rgba(148,163,184,0.8)', margin: '0 0 34px', maxWidth: 480 }}>
+                ThreatShield uses AI to map your architecture, surface real threats, and score risk in minutes — not the weeks a manual review takes. proactive security, built into your pipeline.
+              </p>
+              <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 40 }}>
+                <button
+                  onClick={handleCTA}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 9,
+                    padding: '14px 28px',
+                    borderRadius: 11,
+                    background: 'linear-gradient(135deg, #1d4ed8, #2563eb)',
+                    border: '1px solid rgba(96,165,250,0.3)',
+                    color: '#fff',
+                    fontSize: 14.5,
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                    boxShadow: '0 0 28px rgba(59,130,246,0.3)',
+                    transition: 'box-shadow 0.2s ease',
+                  }}
+                  onMouseEnter={e => ((e.currentTarget as HTMLElement).style.boxShadow = '0 0 40px rgba(59,130,246,0.5)')}
+                  onMouseLeave={e => ((e.currentTarget as HTMLElement).style.boxShadow = '0 0 28px rgba(59,130,246,0.3)')}
+                >
+                  start a free assessment
+                  <ArrowIcon />
+                </button>
+                <button
+                  onClick={copyCmd}
+                  title={CLONE_CMD}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 7,
+                    padding: '8px 13px',
+                    borderRadius: 9,
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    background: 'rgba(255,255,255,0.03)',
+                    color: 'rgba(255,255,255,0.8)',
+                    fontSize: 11.5,
+                    fontFamily: MONO,
+                    cursor: 'pointer',
+                    alignSelf: 'center',
+                  }}
+                  onMouseEnter={e => {
+                    const el = e.currentTarget as HTMLElement;
+                    el.style.borderColor = 'rgba(96,165,250,0.4)';
+                    el.style.background = 'rgba(255,255,255,0.06)';
+                  }}
+                  onMouseLeave={e => {
+                    const el = e.currentTarget as HTMLElement;
+                    el.style.borderColor = 'rgba(255,255,255,0.12)';
+                    el.style.background = 'rgba(255,255,255,0.03)';
+                  }}
+                >
+                  <span style={{ color: 'rgba(96,165,250,0.7)' }}>$</span>
+                  <span style={{ whiteSpace: 'nowrap' }}>{cmdCopied ? 'copied!' : 'git clone'}</span>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="9" y="9" width="13" height="13" rx="2" />
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
                   </svg>
-                  <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.85)' }}>2nd-pass critic cleared <span style={{ color: '#a5b4fc', fontWeight: 600 }}>3 false positives</span></span>
+                </button>
+              </div>
+              <div style={{ display: 'flex', gap: 44 }}>
+                {HERO_STATS.map((s) => (
+                  <div key={s.label}>
+                    <div style={{ fontFamily: DISPLAY, fontSize: 30, fontWeight: 700, color: '#60a5fa', lineHeight: 1 }}>
+                      {s.value}{s.suffix}
+                    </div>
+                    <div style={{ fontFamily: MONO, fontSize: 10, color: 'rgba(100,116,139,0.7)', letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 7 }}>
+                      {s.label}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Hero preview card */}
+            <div style={{ flex: '1 1 380px' }}>
+              <div style={{ position: 'relative', overflow: 'hidden', ...card }}>
+                <div style={{ position: 'absolute', top: -120, right: -90, width: 300, height: 300, borderRadius: '50%', background: 'radial-gradient(circle, rgba(99,102,241,0.18) 0%, transparent 65%)', pointerEvents: 'none' }} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '14px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)', position: 'relative' }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#3b82f6', boxShadow: '0 0 8px #3b82f6', animation: 'ts-pulse 2.2s ease-in-out infinite' }} />
+                  <span style={{ fontFamily: MONO, fontSize: 11, color: 'rgba(148,163,184,0.7)' }}>threatshield · assessment overview</span>
+                  <span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 10, color: 'rgba(96,165,250,0.8)' }}>payments-api</span>
+                </div>
+                <div style={{ padding: '24px 22px', position: 'relative', zIndex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 22, marginBottom: 22 }}>
+                    <div style={{ position: 'relative', width: 122, height: 122, flexShrink: 0 }}>
+                      <svg width="122" height="122" viewBox="0 0 132 132" style={{ transform: 'rotate(-90deg)' }}>
+                        <defs>
+                          <linearGradient id="tsRing" x1="0" y1="0" x2="1" y2="1">
+                            <stop offset="0%" stopColor="#60a5fa" />
+                            <stop offset="100%" stopColor="#818cf8" />
+                          </linearGradient>
+                        </defs>
+                        <circle cx="66" cy="66" r="56" fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="11" />
+                        <circle cx="66" cy="66" r="56" fill="none" stroke="url(#tsRing)" strokeWidth="11" strokeLinecap="round" strokeDasharray="352" strokeDashoffset="92" style={{ animation: 'ts-ring 1.5s ease-out' }} />
+                      </svg>
+                      <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                        <span style={{ fontFamily: DISPLAY, fontSize: 30, fontWeight: 700, color: '#fff', lineHeight: 1 }}>7.4</span>
+                        <span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(148,163,184,0.7)', marginTop: 4 }}>avg DREAD</span>
+                      </div>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'rgba(100,116,139,0.7)', marginBottom: 13 }}>threat distribution</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+                        {([['critical', '88%', '#f3523c', 8], ['high', '70%', '#f99438', 7], ['medium', '48%', '#eab308', 5], ['low', '28%', '#05c74f', 3]] as [string, string, string, number][]).map(([lbl, w, c, n]) => (
+                          <div key={lbl} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <span style={{ width: 54, fontSize: 10.5, color: 'rgba(148,163,184,0.8)' }}>{lbl}</span>
+                            <div style={{ flex: 1, height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
+                              <div style={{ height: '100%', width: w, borderRadius: 3, background: c }} />
+                            </div>
+                            <span style={{ fontFamily: MONO, fontSize: 10.5, color: 'rgba(255,255,255,0.7)', width: 14, textAlign: 'right' }}>{n}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ height: 1, background: 'rgba(255,255,255,0.06)', marginBottom: 16 }} />
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 16 }}>
+                    {([['94%', 'ASVS coverage'], ['41', 'test cases'], ['18', 'mitigations']] as [string, string][]).map(([v, l]) => (
+                      <div key={l} style={{ padding: '11px 12px', borderRadius: 11, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                        <div style={{ fontFamily: DISPLAY, fontSize: 18, fontWeight: 700, color: '#60a5fa', lineHeight: 1 }}>{v}</div>
+                        <div style={{ fontFamily: MONO, fontSize: 8, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'rgba(100,116,139,0.75)', marginTop: 6 }}>{l}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '11px 14px', borderRadius: 11, background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.22)' }}>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#a5b4fc" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M20 6 9 17l-5-5" />
+                    </svg>
+                    <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.85)' }}>2nd-pass critic cleared <span style={{ color: '#a5b4fc', fontWeight: 600 }}>3 false positives</span></span>
+                  </div>
                 </div>
               </div>
             </div>
