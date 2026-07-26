@@ -20,6 +20,21 @@ ThreatShield is an AI-powered threat modeling platform for security engineers. I
 - **MCP server**: Expose ThreatShield capabilities to Claude Desktop, Claude Code, and other MCP clients
 - **Jira & Slack integrations**: Ticket creation and DM notifications
 
+## What's new in v2.0
+
+| Feature | What it does | Where |
+|---------|--------------|-------|
+| **Data flow diagrams** | Every assessment now produces a DFD — a Mermaid overview plus a detailed ReactFlow graph with components, data flows, and trust boundaries | `core/generate_diagram.py` · `GET /api/generate-diagrams` |
+| **Grouped DFDs** | Merge many assessments into one system-level diagram. Sub-models are combined by hierarchical tree-merge (3 per LLM call) so large groups stay within context | `core/consolidate_diagram.py` · `POST /api/consolidated-diagram/generate` · `GET /api/consolidated-diagram/status` |
+| **Interactive mode** | Explore the architecture graph and its threats side by side, with per-component DREAD scores, component categories, and trust boundaries instead of a static list | `/interactive-threat-model/:assessment_id` |
+| **Component-level chat** | Select any component *or* any individual threat in the interactive view and chat scoped to just that node — not the whole assessment | `POST /api/query-ai` |
+| **Team-level custom threat models** | Define reusable threat models owned by a team, then browse the threats rolled up across that team's assessments | `GET/POST /api/teams` · `GET/POST/DELETE /api/custom-threat-models` · `/department-threat-models` |
+| **TM-BOM** | Threat Model Bill of Materials following OWASP nomenclature and the CycloneDX TM-BOM draft: `THREAT-NNN` IDs cross-linked to DREAD scores, mitigations, and ASVS test cases | `core/tmbom.py` · `POST /api/tmbom/generate` · `GET /api/tmbom/download` |
+| **Report enhancements** | The PDF report gained a dedicated Data Flow Diagram section alongside the existing analysis sections, plus full JSON export | `utils/pdf_generator.py` · `GET /api/report/download-pdf` · `GET /api/report/download-json` |
+| **Second-pass critic** | An LLM critic pass re-reads generated threats and drops false positives and low-quality entries, reporting what it removed. Tunable per deployment | `core/threat_filter.py` · `GET/POST /api/admin/threat-filter-config` |
+| **Feedback** | Shareable per-assessment feedback links (delivered via Slack DM) with an admin view of everything submitted | `GET /api/feedback/<uuid>` · `POST /api/feedback/<uuid>/submit` · `GET /api/admin/feedback` |
+| **Analytics & metrics** | Risk trends and assessment metrics across all assessments | `/analytics` · `GET /api/analytics-data` · `GET /api/metrics` |
+
 ## Prerequisites
 
 - Python 3.10+
@@ -41,8 +56,35 @@ cp .env.example .env   # edit with your values
 
 `.env` holds **API keys and secrets only**. LLM provider/model/endpoint config lives in `settings.json` and is managed by an admin through the UI after first login.
 
+`./start.sh` creates `.env` from `.env.example` on the first run and exits so you can fill in the values below.
+
+#### Mandatory variables
+
+| Variable | Required | What happens without it |
+|----------|----------|-------------------------|
+| `LLM_METHOD` | Always — `OPENAI` or `BEDROCK` | Falls back to `OPENAI` (`utils/config.py`). Once an admin saves LLM config in the UI, `settings.json` → `llmConfig.method` takes precedence over this |
+| `OPENAI_API_KEY` | When `LLM_METHOD=OPENAI` | `./start.sh` exits with `Error: OPENAI_API_KEY not set in .env file`; no analysis can run |
+| `BEDROCK_API_KEY` | When `LLM_METHOD=BEDROCK` | Every LLM call fails auth against the Bedrock proxy |
+| `GOOGLE_CLIENT_ID` | Always | `POST /api/auth/google` returns `Google OAuth not configured on server` (500) — nobody can sign in |
+| `FLASK_SECRET_KEY` | Always | Silently falls back to `change-me-in-production`, making auth tokens forgeable. Generate one with `python3 -c "import secrets; print(secrets.token_hex(32))"` |
+
+Minimum viable `.env` for local development:
+
 ```env
-# LLM API keys — which provider to use is set in the Admin Dashboard, not here
+LLM_METHOD=OPENAI
+OPENAI_API_KEY=sk-...
+GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
+FLASK_SECRET_KEY=a-long-random-hex-string
+ALLOWED_ORIGINS=http://localhost:3000
+```
+
+Every other variable is optional and only needed for the integrations you actually use.
+
+#### All variables
+
+```env
+# Provider selection — settings.json overrides this once configured via the Admin Dashboard
+LLM_METHOD=OPENAI
 OPENAI_API_KEY=sk-...          # required if using OpenAI
 BEDROCK_API_KEY=your-key       # required if using AWS Bedrock proxy
 
@@ -120,8 +162,8 @@ Alternatively, edit `settings.json` directly and add the email to the `admins` a
 ### 4. Backend
 
 ```bash
-python3 -m venv env
-source env/bin/activate        # Windows: env\Scripts\activate
+python3 -m venv ts             # ./start.sh uses ts/ — override with VENV_DIR
+source ts/bin/activate         # Windows: ts\Scripts\activate
 pip install -r requirements.txt
 python3 app.py                 # runs on http://localhost:5001
 ```
@@ -140,7 +182,13 @@ npm start                      # runs on http://localhost:3000
 ./start.sh
 ```
 
-This kills existing processes on ports 3000/5001/8765, loads `.env`, starts Flask, the MCP server, and the React frontend.
+This kills existing processes on ports 3000/5001/8765, then bootstraps everything it needs before starting Flask, the MCP server, and the React frontend:
+
+- Creates `.env` from `.env.example` if it's missing, then exits so you can fill in your keys
+- Creates the `ts/` virtualenv if it's missing (override the location with `VENV_DIR`)
+- Installs `requirements.txt` on first run, and again whenever the file changes (tracked by a checksum in `ts/.requirements.sha256`) — otherwise it skips straight to launching
+- Verifies the venv can actually import its dependencies and reinstalls if not
+- Installs frontend packages with `npm ci` when `node_modules` is missing or the lockfile changed
 
 ### 7. Docker
 
