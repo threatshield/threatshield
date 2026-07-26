@@ -84,9 +84,29 @@ sleep 2
 echo "Starting ThreatShield MCP server on port 8765..."
 python3 mcp_server.py &
 
-# Start React frontend
+# Start React frontend (install deps only when missing or the lockfile changed)
 echo "Starting React frontend..."
-(cd threat-shield && npm install && npm run dev) &
+(
+    cd threat-shield || exit 1
+    if [ ! -d node_modules ] || [ package-lock.json -nt node_modules ]; then
+        echo "Installing frontend dependencies ..."
+        # npm ci installs exactly what package-lock.json pins — same tree for everyone.
+        if ! npm ci; then
+            # Last resort: a corrupt/stale lockfile (e.g. EINTEGRITY) would otherwise
+            # leave the frontend permanently unstartable. Rebuild it from package.json.
+            echo ""
+            echo "WARNING: npm ci failed. Rebuilding node_modules and package-lock.json"
+            echo "         from package.json — resolved versions may differ from the"
+            echo "         committed lockfile. Review/commit the new lockfile if it works."
+            rm -rf node_modules package-lock.json
+            if ! npm install; then
+                echo "Error: npm install failed — React frontend not started."
+                exit 1
+            fi
+        fi
+    fi
+    npm run dev
+) &
 
 # Wait for user input
 echo "Services running:"
