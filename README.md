@@ -421,6 +421,10 @@ Two providers are supported:
 
 Both are handled by `llm/openai_module.py` (OpenAIHandler). After saving config in the Admin Dashboard, the admin must click **Test** to verify the connection — `settings.json` tracks this as `llmConfig.tested`. Assessments cannot be processed until the LLM config has been tested successfully.
 
+Note: ThreatShield requires the following OpenAI models to be enabled:
+- `gpt-4o`: for threat modeling and analysis (any other reasoning model can also be used)
+- `text-embedding-3-large`: for vector database creation
+
 ## Contributing
 
 1. Fork the repository
